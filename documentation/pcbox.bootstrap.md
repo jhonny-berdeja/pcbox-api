@@ -376,7 +376,200 @@ Va a mostrar una advertencia de certificado autofirmado (esperado, el Dashboard 
 
 Una vez adentro, para gestionar Secrets desde la interfaz: panel lateral izquierdo → **Secrets** → elegir namespace (o "All namespaces") → click en un Secret y el ícono de "ojo" para revelar sus valores en texto plano, o el botón **+** arriba a la derecha para crear uno nuevo por YAML.
 
-## 8. Datos que quedan de este proceso
+## 8. Crear la base de datos `ticket-hub-db` en microk8s
+
+Motor elegido: **PostgreSQL**. Corre como un Pod dentro del cluster de microk8s (no instalado directo en el sistema operativo del servidor), con sus datos en un volumen persistente y sus credenciales en un Secret de Kubernetes — el mismo tipo de recurso que ya se gestiona desde el Dashboard en el paso 7. Así, cambiar el usuario o la contraseña de la base más adelante es editar ese Secret desde la interfaz, sin tocar nada en el servidor a mano.
+
+Todo esto se hace conectado por SSH sobre Tailscale, igual que los pasos anteriores:
+
+```bash
+ssh -i deploy_key jhon@IP_TAILSCALE
+```
+
+### 8.1. Habilitar almacenamiento persistente en microk8s
+
+Por defecto microk8s no tiene una `StorageClass` para que los Pods pidan volúmenes persistentes. Habilitar el addon:
+
+```bash
+microk8s enable hostpath-storage
+```
+
+Esto crea la `StorageClass` `microk8s-hostpath`, que guarda los datos en disco en el propio servidor — sobreviven a que el Pod se reinicie o se recree.
+
+### 8.2. Crear el namespace
+
+Para no mezclar estos recursos con los del Dashboard (que vive en `kube-system`):
+
+```bash
+microk8s kubectl create namespace ticket-hub
+```
+
+### 8.3. Crear el Secret con el usuario y la contraseña
+
+Este es el Secret que después se edita desde el Dashboard (paso 7 → Secrets → ícono de "ojo" para revelar, o el botón de editar) cada vez que haga falta rotar la credencial. Reemplazar `usuario_db` y `clave_segura` por los valores reales:
+
+```bash
+microk8s kubectl create secret generic ticket-hub-db-credentials \
+  -n ticket-hub \
+  --from-literal=POSTGRES_USER=usuario_db \
+  --from-literal=POSTGRES_PASSWORD=clave_segura
+```
+
+> **Nota:** esta es la única vez que la credencial se escribe a mano por línea de comandos. De acá en adelante, para cambiarla, se hace desde el Dashboard — el Pod de la base la relee recién en el próximo reinicio del Pod, porque Kubernetes no reinyecta variables de entorno en un contenedor ya corriendo.
+
+### 8.4. Definir el esquema inicial como ConfigMap
+
+En vez de crear las tablas a mano por `psql` cada vez, el esquema se guarda como script SQL en un ConfigMap. La imagen oficial de Postgres ejecuta automáticamente cualquier `.sql` que encuentre en `/docker-entrypoint-initdb.d/` la primera vez que arranca con el volumen de datos vacío.
+
+```bash
+sudo nano ~/ticket-hub-db-init.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ticket-hub-db-init
+  namespace: ticket-hub
+data:
+  init.sql: |
+    CREATE TABLE users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(15) NOT NULL,
+      lastname VARCHAR(15) NOT NULL,
+      email VARCHAR(30) NOT NULL UNIQUE,
+      password VARCHAR(100) NOT NULL
+    );
+
+    CREATE TABLE roles (
+      id SERIAL PRIMARY KEY,
+      id_user INTEGER NOT NULL REFERENCES users(id),
+      rol VARCHAR(15) NOT NULL
+    );
+
+    CREATE TABLE tickets (
+      id SERIAL PRIMARY KEY,
+      creator INTEGER NOT NULL REFERENCES users(id),
+      assignee INTEGER REFERENCES users(id),
+      department VARCHAR(25) NOT NULL,
+      subject VARCHAR(100) NOT NULL,
+      status VARCHAR(20) NOT NULL,
+      description VARCHAR(200) NOT NULL,
+      code_ansible VARCHAR(500)
+    );
+```
+
+```bash
+microk8s kubectl apply -f ~/ticket-hub-db-init.yaml
+```
+
+> **Nota sobre los agregados al esquema pedido:** se suman `REFERENCES` (foreign keys) en `roles.id_user`, `tickets.creator` y `tickets.assignee` porque apuntan a filas de `users` — sin esa referencia, Postgres dejaría insertar un `id_user` que no existe. `tickets.assignee` queda sin `NOT NULL` porque un ticket puede crearse sin asignar todavía; el resto de las columnas obligatorias del pedido quedan como `NOT NULL`, y `email` suma `UNIQUE` porque es el dato que va a identificar al usuario para loguearse.
+
+### 8.5. Crear el volumen persistente, el Deployment y el Service
+
+```bash
+sudo nano ~/ticket-hub-db.yaml
+```
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ticket-hub-db-pvc
+  namespace: ticket-hub
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: microk8s-hostpath
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-hub-db
+  namespace: ticket-hub
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ticket-hub-db
+  template:
+    metadata:
+      labels:
+        app: ticket-hub-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: ticket-hub-db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          envFrom:
+            - secretRef:
+                name: ticket-hub-db-credentials
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ticket-hub-db-pvc
+        - name: init-script
+          configMap:
+            name: ticket-hub-db-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ticket-hub-db
+  namespace: ticket-hub
+spec:
+  selector:
+    app: ticket-hub-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+```
+
+> **Nota sobre `PGDATA`:** apunta a un subdirectorio (`/pgdata`) y no directo a la raíz del volumen montado. Es el workaround conocido para Postgres sobre almacenamiento tipo hostPath — la raíz del volumen viene con un `lost+found` creado por el filesystem, y Postgres se niega a inicializar un directorio de datos que no está completamente vacío.
+
+```bash
+microk8s kubectl apply -f ~/ticket-hub-db.yaml
+```
+
+### 8.6. Verificar
+
+```bash
+microk8s kubectl get pods -n ticket-hub
+```
+
+Debería aparecer `ticket-hub-db-...` en estado `Running`. Ver los logs de arranque (ahí se ve si corrió el `init.sql`):
+
+```bash
+microk8s kubectl logs -n ticket-hub deployment/ticket-hub-db
+```
+
+Confirmar que las tres tablas quedaron creadas, entrando al Pod y usando `psql`:
+
+```bash
+microk8s kubectl exec -it -n ticket-hub deployment/ticket-hub-db -- psql -U usuario_db -d ticket-hub-db -c '\dt'
+```
+
+Debería listar `users`, `roles` y `tickets`.
+
+Dentro del cluster, cualquier otro Pod (por ejemplo, más adelante, el propio `pcbox-api`) se conecta a esta base con el host `ticket-hub-db.ticket-hub.svc.cluster.local`, puerto `5432`, usando el usuario y la contraseña del Secret `ticket-hub-db-credentials`.
+
+## 9. Datos que quedan de este proceso
 
 | Dato | Qué es | De qué paso salió | Para qué es |
 |---|---|---|---|
@@ -385,3 +578,5 @@ Una vez adentro, para gestionar Secrets desde la interfaz: panel lateral izquier
 | `SSH_PRIVATE_KEY` | La clave privada `deploy_key` generada con `ssh-keygen` | Paso 3 | Autenticación SSH del runner sin contraseña |
 | `pcbox-kubeconfig.yaml` | El kubeconfig de microk8s, con `server:` editado para apuntar a la IP de Tailscale en vez de a la IP local | Paso 6 (`microk8s config` + edición manual) | Credencial para administrar el cluster de forma remota — vive solo en la PC cliente, pendiente de decidir cómo se le entrega a CI cuando haga falta desplegar |
 | URL del Dashboard (`https://100.x.x.x:10443`) | La IP de Tailscale del servidor + el puerto `10443` del túnel systemd | Paso 7 (`dashboard-tunnel.service`) | Acceder al Dashboard de microk8s desde el navegador, en cualquier PC conectada a la tailnet |
+| Secret `ticket-hub-db-credentials` (namespace `ticket-hub`) | `POSTGRES_USER` y `POSTGRES_PASSWORD` de la base `ticket-hub-db` | Paso 8.3 (creado por `kubectl create secret`, editable después desde el Dashboard) | Credenciales de conexión a la base; cualquier rotación se hace editando este Secret desde el Dashboard, no por SSH |
+| Host interno `ticket-hub-db.ticket-hub.svc.cluster.local:5432` | DNS interno del cluster que apunta al Service de la base | Paso 8.5 (`Service` `ticket-hub-db`) | Cadena de conexión que va a usar `pcbox-api` (u otro Pod del cluster) para hablarle a Postgres |
