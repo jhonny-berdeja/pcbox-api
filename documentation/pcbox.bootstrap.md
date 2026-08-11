@@ -449,6 +449,7 @@ data:
 
     CREATE TABLE tickets (
       id SERIAL PRIMARY KEY,
+      number SERIAL UNIQUE,
       creator INTEGER NOT NULL REFERENCES users(id),
       assignee INTEGER REFERENCES users(id),
       department VARCHAR(25) NOT NULL,
@@ -463,7 +464,9 @@ data:
 microk8s kubectl apply -f ~/ticket-hub-db-init.yaml
 ```
 
-> **Nota sobre los agregados al esquema pedido:** se suman `REFERENCES` (foreign keys) en `roles.id_user`, `tickets.creator` y `tickets.assignee` porque apuntan a filas de `users` — sin esa referencia, Postgres dejaría insertar un `id_user` que no existe. `tickets.assignee` queda sin `NOT NULL` porque un ticket puede crearse sin asignar todavía; el resto de las columnas obligatorias del pedido quedan como `NOT NULL`, y `email` suma `UNIQUE` porque es el dato que va a identificar al usuario para loguearse.
+> **Nota sobre los agregados al esquema pedido:** se suman `REFERENCES` (foreign keys) en `roles.id_user`, `tickets.creator` y `tickets.assignee` porque apuntan a filas de `users` — sin esa referencia, Postgres dejaría insertar un `id_user` que no existe. `tickets.assignee` queda sin `NOT NULL` en el schema (la app lo exige igual al crear un ticket, por regla de negocio, no por constraint de DB — así no hace falta tocar filas existentes si esa regla cambia más adelante); el resto de las columnas obligatorias del pedido quedan como `NOT NULL`, y `email` suma `UNIQUE` porque es el dato que va a identificar al usuario para loguearse. `tickets.number` es `SERIAL UNIQUE` — autoincremental igual que `id`, pero con su propia secuencia; la app le antepone el prefijo `TK-` (`TK-1`, `TK-2`, ...) solo para mostrarlo, nunca se guarda el prefijo en la columna.
+>
+> **Actualización posterior:** `tickets.number` se agregó después de que esta tabla ya estaba desplegada — si estás mirando este documento para levantar la base desde cero, ya viene incluido arriba. Si en cambio ya tenés una base viva sin esa columna, no se puede recrear la tabla sin perder datos; hay que agregarla con `ALTER TABLE`, ver el paso 8.7 más abajo.
 
 ### 8.5. Crear el volumen persistente, el Deployment y el Service
 
@@ -568,6 +571,36 @@ microk8s kubectl exec -it -n ticket-hub deployment/ticket-hub-db -- psql -U usua
 Debería listar `users`, `roles` y `tickets`.
 
 Dentro del cluster, cualquier otro Pod (por ejemplo, más adelante, el propio `pcbox-api`) se conecta a esta base con el host `ticket-hub-db.ticket-hub.svc.cluster.local`, puerto `5432`, usando el usuario y la contraseña del Secret `ticket-hub-db-credentials`.
+
+### 8.7. Agregar la columna `tickets.number` (migración posterior)
+
+Esta columna se agregó al esquema después de que la base ya estaba desplegada — el `init.sql` del paso 8.4 no vuelve a correr sobre un volumen que ya tiene datos, así que hay que aplicarla a mano, una sola vez, con `ALTER TABLE`. Conectado por SSH al servidor:
+
+```bash
+microk8s kubectl exec -it -n ticket-hub deployment/ticket-hub-db -- bash
+```
+
+Ya adentro del contenedor:
+
+```bash
+psql -U "$POSTGRES_USER" -d ticket-hub-db
+```
+
+Y en el prompt de `psql`:
+
+```sql
+ALTER TABLE tickets ADD COLUMN number SERIAL UNIQUE;
+```
+
+Esto crea la columna, una secuencia propia (`tickets_number_seq`) y la deja autoincremental — el primer ticket que exista al momento de correr esto (si hay alguno) se numera `1`, el próximo insert `2`, y así. La app antepone `TK-` solo para mostrarlo (`TK-1`, `TK-2`, ...); la columna guarda el entero pelado.
+
+Verificar:
+
+```sql
+\d tickets
+```
+
+Debería listar `number` como `integer`, con default `nextval('tickets_number_seq'::regclass)`.
 
 ## 9. Datos que quedan de este proceso
 
