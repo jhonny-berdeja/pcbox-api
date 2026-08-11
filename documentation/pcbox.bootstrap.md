@@ -449,7 +449,7 @@ data:
 
     CREATE TABLE tickets (
       id SERIAL PRIMARY KEY,
-      number SERIAL UNIQUE,
+      number INTEGER NOT NULL UNIQUE,
       creator INTEGER NOT NULL REFERENCES users(id),
       assignee INTEGER REFERENCES users(id),
       department VARCHAR(25) NOT NULL,
@@ -464,7 +464,7 @@ data:
 microk8s kubectl apply -f ~/ticket-hub-db-init.yaml
 ```
 
-> **Nota sobre los agregados al esquema pedido:** se suman `REFERENCES` (foreign keys) en `roles.id_user`, `tickets.creator` y `tickets.assignee` porque apuntan a filas de `users` — sin esa referencia, Postgres dejaría insertar un `id_user` que no existe. `tickets.assignee` queda sin `NOT NULL` en el schema (la app lo exige igual al crear un ticket, por regla de negocio, no por constraint de DB — así no hace falta tocar filas existentes si esa regla cambia más adelante); el resto de las columnas obligatorias del pedido quedan como `NOT NULL`, y `email` suma `UNIQUE` porque es el dato que va a identificar al usuario para loguearse. `tickets.number` es `SERIAL UNIQUE` — autoincremental igual que `id`, pero con su propia secuencia; la app le antepone el prefijo `TK-` (`TK-1`, `TK-2`, ...) solo para mostrarlo, nunca se guarda el prefijo en la columna.
+> **Nota sobre los agregados al esquema pedido:** se suman `REFERENCES` (foreign keys) en `roles.id_user`, `tickets.creator` y `tickets.assignee` porque apuntan a filas de `users` — sin esa referencia, Postgres dejaría insertar un `id_user` que no existe. `tickets.assignee` queda sin `NOT NULL` en el schema (la app lo exige igual al crear un ticket, por regla de negocio, no por constraint de DB — así no hace falta tocar filas existentes si esa regla cambia más adelante); el resto de las columnas obligatorias del pedido quedan como `NOT NULL`, y `email` suma `UNIQUE` porque es el dato que va a identificar al usuario para loguearse. `tickets.number` es `INTEGER NOT NULL UNIQUE`, no `SERIAL`: la app lo calcula ella misma (`MAX(number) + 1` antes de cada insert), no la base — un `SERIAL` en una columna que no es la primary key necesita `AUTOINCREMENT` al sincronizar el schema en SQLite (usado en los tests e2e), y SQLite solo permite `AUTOINCREMENT` en la primary key, así que no puede funcionar igual en los dos motores. La app le antepone el prefijo `TK-` (`TK-1`, `TK-2`, ...) solo para mostrarlo, nunca se guarda el prefijo en la columna.
 >
 > **Actualización posterior:** `tickets.number` se agregó después de que esta tabla ya estaba desplegada — si estás mirando este documento para levantar la base desde cero, ya viene incluido arriba. Si en cambio ya tenés una base viva sin esa columna, no se puede recrear la tabla sin perder datos; hay que agregarla con `ALTER TABLE`, ver el paso 8.7 más abajo.
 
@@ -589,10 +589,13 @@ psql -U "$POSTGRES_USER" -d ticket-hub-db
 Y en el prompt de `psql`:
 
 ```sql
-ALTER TABLE tickets ADD COLUMN number SERIAL UNIQUE;
+ALTER TABLE tickets ADD COLUMN number INTEGER;
+UPDATE tickets SET number = id WHERE number IS NULL;
+ALTER TABLE tickets ALTER COLUMN number SET NOT NULL;
+ALTER TABLE tickets ADD CONSTRAINT tickets_number_unique UNIQUE (number);
 ```
 
-Esto crea la columna, una secuencia propia (`tickets_number_seq`) y la deja autoincremental — el primer ticket que exista al momento de correr esto (si hay alguno) se numera `1`, el próximo insert `2`, y así. La app antepone `TK-` solo para mostrarlo (`TK-1`, `TK-2`, ...); la columna guarda el entero pelado.
+No es `SERIAL` — la app calcula el número ella misma (`MAX(number) + 1` antes de cada insert, ver `TicketsService.create`), no la base. Por eso son cuatro pasos en vez de uno: `ADD COLUMN` sin `NOT NULL` primero (si la tabla ya tiene filas, Postgres no deja agregar una columna `NOT NULL` sin default de una sola vez), `UPDATE` para rellenar cualquier fila existente usando su propio `id` como número de partida razonable, y recién ahí `SET NOT NULL` + el `UNIQUE`. Si la tabla está vacía (lo más probable, ya que el flujo de creación de tickets recién se implementó), el `UPDATE` simplemente no actualiza nada y el resto corre igual. La app antepone `TK-` solo para mostrarlo (`TK-1`, `TK-2`, ...); la columna guarda el entero pelado.
 
 Verificar:
 
@@ -600,7 +603,7 @@ Verificar:
 \d tickets
 ```
 
-Debería listar `number` como `integer`, con default `nextval('tickets_number_seq'::regclass)`.
+Debería listar `number` como `integer`, `not null`, con una constraint `UNIQUE`.
 
 ## 9. Datos que quedan de este proceso
 
