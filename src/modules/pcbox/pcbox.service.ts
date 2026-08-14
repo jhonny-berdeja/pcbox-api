@@ -19,20 +19,6 @@ export class PcboxService {
     private readonly ansibleService: AnsibleService,
   ) {}
 
-  /**
-   * Three gates, in this exact order, each one strictly cheaper than the
-   * next — every gate has to pass before the next one even runs, and
-   * nothing is written to `administrations` nor executed until all three
-   * have:
-   *
-   * 1. `status === 'APPROVED'` — a local, in-memory string comparison, so
-   *    an obviously-wrong request never spends a network round trip.
-   * 2. ticket-hub-api's `GET /tickets/:number/verify` — a network call, so
-   *    it only runs once the free check above already passed.
-   * 3. `fileContent` parses as YAML — cheap CPU work, but only worth doing
-   *    once the caller is already confirmed to hold a real, approved
-   *    ticket; no point parsing a payload nobody was allowed to submit.
-   */
   async create(dto: CreatePcboxDto): Promise<ResponseBody<PcboxResponse>> {
     this.assertApprovedStatus(dto.status);
 

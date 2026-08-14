@@ -1,9 +1,8 @@
 import { Injectable, UnprocessableEntityException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { TicketHubApiConnector } from './ticket-hub-api.connector';
 
 const TICKET_DOES_NOT_MATCH_MESSAGE =
   'Ticket does not match the given criteria';
-const VERIFY_REQUEST_TIMEOUT_MS = 5_000;
 
 /**
  * Own, narrow input shape instead of importing `PcboxModule`'s
@@ -23,49 +22,31 @@ export interface TicketVerificationCriteria {
 }
 
 /**
- * Calls ticket-hub-api's machine-to-machine `GET /tickets/:number/verify`
- * (see ticket-hub-api/src/modules/tickets/tickets.controller.ts#verify) —
- * plain Node 22 `fetch`, no `axios`/`@nestjs/axios` dependency added just
- * for one GET call.
+ * Owns the *decisions* around verifying a ticket against ticket-hub-api's
+ * machine-to-machine `GET /tickets/:number/verify` (see
+ * ticket-hub-api/src/modules/tickets/tickets.controller.ts#verify): which
+ * path/query to build, and what any non-200 response means —
+ * `TicketHubApiConnector` owns only the mechanics of actually making the
+ * HTTP call (see its own comment).
  *
- * Split into its own module (`TicketHubApiModule`) so this outbound
- * integration — its own timeout/error handling, its own env vars — can be
- * read/tested/reused independent of `PcboxModule`'s HTTP contract.
- *
- * Any non-200 response (404 no match, 401 bad shared key, network error,
- * timeout) is treated identically: the caller only needs to know
- * "verified" or "not verified", never why — same "reveal the minimum"
- * reasoning ticket-hub-api's own VerifyTicketService documents for its
- * side of this same call.
+ * Any failure (404 no match, 401 bad shared key, network error, timeout)
+ * is treated identically: the caller only needs to know "verified" or
+ * "not verified", never why — same "reveal the minimum" reasoning
+ * ticket-hub-api's own VerifyTicketService documents for its side of this
+ * same call.
  */
 @Injectable()
 export class TicketHubVerificationService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly ticketHubApiConnector: TicketHubApiConnector) {}
 
   async verify(criteria: TicketVerificationCriteria): Promise<void> {
-    const url = this.buildVerifyUrl(criteria);
-    const internalApiKey = this.configService.get<string>(
-      'TICKET_HUB_API_INTERNAL_KEY',
-    )!;
+    const path = this.buildVerifyPath(criteria);
 
     let response: Response;
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(
-        () => controller.abort(),
-        VERIFY_REQUEST_TIMEOUT_MS,
-      );
-      try {
-        response = await fetch(url, {
-          method: 'GET',
-          headers: { 'x-internal-api-key': internalApiKey },
-          signal: controller.signal,
-        });
-      } finally {
-        clearTimeout(timeout);
-      }
+      response = await this.ticketHubApiConnector.get(path);
     } catch {
-      // Network error, DNS failure, or the abort from the timeout above —
+      // Network error, DNS failure, or the connector's own timeout abort —
       // all collapse into the same rejection, nothing internal leaks out.
       throw new UnprocessableEntityException(TICKET_DOES_NOT_MATCH_MESSAGE);
     }
@@ -75,14 +56,13 @@ export class TicketHubVerificationService {
     }
   }
 
-  private buildVerifyUrl(criteria: TicketVerificationCriteria): string {
-    const baseUrl = this.configService.get<string>('TICKET_HUB_API_URL')!;
+  private buildVerifyPath(criteria: TicketVerificationCriteria): string {
     const query = new URLSearchParams({
       department: criteria.department,
       status: criteria.status,
       informer: criteria.informer,
       approver: criteria.approver,
     });
-    return `${baseUrl}/tickets/${criteria.ticketNumber}/verify?${query.toString()}`;
+    return `/tickets/${criteria.ticketNumber}/verify?${query.toString()}`;
   }
 }

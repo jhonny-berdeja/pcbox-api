@@ -33,7 +33,12 @@ distinto.
     Sin controller: nadie le habla por HTTP directamente, solo lo consume
     `pcbox/` vía DI.
   - `ticket-hub-api/` — todo lo relacionado con hablarle a ticket-hub-api
-    (`TicketHubVerificationService`). Sin controller, mismo criterio.
+    (`TicketHubVerificationService` + `TicketHubApiConnector`). Sin
+    controller, mismo criterio. Mismo split interno que `ansible/`:
+    `TicketHubApiConnector` es la mecánica HTTP cruda (URL, header del
+    secreto, timeout), `TicketHubVerificationService` decide qué path
+    pedir y qué significa la respuesta — ver "Handlers en el service
+    general vs. service dedicado" más abajo.
   - Cada módulo con controller tiene `<funcionalidad>.module.ts`,
     `<funcionalidad>.controller.ts`, `<funcionalidad>.service.ts`; los que
     no exponen HTTP (`ansible/`, `ticket-hub-api/`) solo tienen su
@@ -106,18 +111,40 @@ un colaborador con una responsabilidad propia y sustancial (una llamada de
 red externa, un proceso hijo) extrae ese colaborador a su propio service
 inyectable — igual que ticket-hub-api extrae `VerifyTicketService`/
 `ApproveTicketService` fuera de `TicketsService`. Acá se fue un paso más
-allá: como cada colaborador es además un *concern* completo con más de un
-archivo propio (`ansible/` tiene el service + la validación de YAML,
-`ticket-hub-api/` tiene el service + su propio tipo de entrada), cada uno
-se promovió a su propio módulo en vez de quedar como un provider más
-dentro de `pcbox/` — ver "Reglas de dependencia entre módulos" más arriba.
+allá: como cada colaborador es además un *concern* completo con varios
+archivos propios (service + connector + lo que haga falta — ver el
+patrón "connector vs. service" más abajo), cada uno se promovió a su
+propio módulo en vez de quedar como un provider más dentro de `pcbox/` —
+ver "Reglas de dependencia entre módulos" más arriba.
+
+### Patrón "connector vs. service" (dentro de `ansible/` y `ticket-hub-api/`)
+
+Ambos módulos sin controller repiten el mismo split interno: un
+`<Módulo>Connector` que es pura mecánica de I/O (arma la llamada, adjunta
+credenciales/timeout, no decide nada de negocio) y un `<Módulo>Service`
+que es la API pública del módulo — decide *qué* pedir y *qué significa*
+la respuesta, nunca hace el I/O él mismo.
+
+- `AnsibleConnector` — arma los args de `ansible-playbook`, corre
+  `execFile`, no valida nada. `AnsibleService` valida el YAML primero,
+  delega en el connector, decide cómo loguear el resultado.
+- `TicketHubApiConnector` — arma la URL completa, adjunta el header del
+  secreto, aplica el timeout, devuelve el `Response` crudo o rechaza.
+  `TicketHubVerificationService` decide qué path/query pedir para una
+  verificación puntual, y qué status (o qué falla) significa "no
+  matchea" — el `Response`/error crudo del connector nunca sale de este
+  service.
+
+El connector es siempre provider del módulo pero **nunca exportado** —
+solo el service lo es (ver `AnsibleModule`/`TicketHubApiModule`). Nada
+fuera del módulo toca el connector directo.
 
 `PcboxService.create` es el único handler hoy, y delega en dos
 colaboradores, cada uno en su propio módulo:
 
-- `TicketHubVerificationService` (`modules/ticket-hub-api/`) — llama a
-  `GET /tickets/:number/verify` en ticket-hub-api (`fetch` nativo, sin
-  agregar `axios`).
+- `TicketHubVerificationService` (`modules/ticket-hub-api/`) — decide qué
+  llamar en `GET /tickets/:number/verify` de ticket-hub-api, delegando el
+  `fetch` nativo (sin agregar `axios`) en `TicketHubApiConnector`.
 - `AnsibleService` (`modules/ansible/`) — escribe el YAML a un
   archivo temporal y corre `ansible-playbook` contra el servidor `pcbox`
   real.

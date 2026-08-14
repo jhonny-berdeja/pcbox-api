@@ -1,5 +1,5 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { TicketHubApiConnector } from './ticket-hub-api.connector';
 import {
   TicketHubVerificationService,
   TicketVerificationCriteria,
@@ -15,59 +15,47 @@ function buildCriteria(): TicketVerificationCriteria {
   };
 }
 
-function buildConfigService(): ConfigService {
-  const values: Record<string, string> = {
-    TICKET_HUB_API_URL: 'http://ticket-hub-api.test',
-    TICKET_HUB_API_INTERNAL_KEY: 'test-internal-key',
-  };
-  return { get: (key: string) => values[key] } as unknown as ConfigService;
-}
-
 describe('TicketHubVerificationService', () => {
-  let fetchSpy: jest.SpiedFunction<typeof fetch>;
-
-  beforeEach(() => {
-    fetchSpy = jest.spyOn(globalThis, 'fetch');
-  });
-
-  afterEach(() => {
-    fetchSpy.mockRestore();
-  });
-
-  it('resolves when ticket-hub-api answers 200', async () => {
-    fetchSpy.mockResolvedValue(new Response(null, { status: 200 }));
-    const service = new TicketHubVerificationService(buildConfigService());
+  it('resolves when the connector returns 200', async () => {
+    const get = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    const connector = { get } as unknown as TicketHubApiConnector;
+    const service = new TicketHubVerificationService(connector);
 
     await expect(service.verify(buildCriteria())).resolves.toBeUndefined();
   });
 
-  it('calls the exact URL/query/header contract ticket-hub-api expects', async () => {
-    fetchSpy.mockResolvedValue(new Response(null, { status: 200 }));
-    const service = new TicketHubVerificationService(buildConfigService());
+  it('calls the connector with the exact path/query ticket-hub-api expects', async () => {
+    const get = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    const connector = { get } as unknown as TicketHubApiConnector;
+    const service = new TicketHubVerificationService(connector);
 
     await service.verify(buildCriteria());
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      'http://ticket-hub-api.test/tickets/1/verify?department=Datacenter&status=APPROVED&informer=Ana&approver=Beto',
-      expect.objectContaining({
-        method: 'GET',
-        headers: { 'x-internal-api-key': 'test-internal-key' },
-      }) as unknown,
+    expect(get).toHaveBeenCalledWith(
+      '/tickets/1/verify?department=Datacenter&status=APPROVED&informer=Ana&approver=Beto',
     );
   });
 
   it('rejects on a 404 (no matching ticket)', async () => {
-    fetchSpy.mockResolvedValue(new Response(null, { status: 404 }));
-    const service = new TicketHubVerificationService(buildConfigService());
+    const get = jest
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 404 }));
+    const connector = { get } as unknown as TicketHubApiConnector;
+    const service = new TicketHubVerificationService(connector);
 
     await expect(service.verify(buildCriteria())).rejects.toThrow(
       UnprocessableEntityException,
     );
   });
 
-  it('rejects on a network failure, without leaking the underlying error', async () => {
-    fetchSpy.mockRejectedValue(new Error('ECONNREFUSED'));
-    const service = new TicketHubVerificationService(buildConfigService());
+  it('rejects on a connector failure, without leaking the underlying error', async () => {
+    const get = jest.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+    const connector = { get } as unknown as TicketHubApiConnector;
+    const service = new TicketHubVerificationService(connector);
 
     await expect(service.verify(buildCriteria())).rejects.toThrow(
       'Ticket does not match the given criteria',
