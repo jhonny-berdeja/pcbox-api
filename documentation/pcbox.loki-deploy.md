@@ -351,4 +351,29 @@ En Grafana, ir a **Explore**, elegir el datasource Loki, y correr una query LogQ
 {namespace="ticket-hub", container="ticket-hub-api"}
 ```
 
-> **Nota:** hoy `ticket-hub-api` no tiene ningún logger de aplicación instrumentado — solo imprime por stdout los mensajes internos de arranque de NestJS, en texto plano (no JSON). Loki los va a indexar igual (búsqueda full-text por LogQL funciona sobre texto plano), pero filtrar por campos estructurados (ej. `level`, `userId`, `requestId`) requeriría instrumentar un logger de la app que emita JSON — eso queda fuera del alcance de este documento, que es sobre la infraestructura de Loki en sí.
+> **Nota:** `ticket-hub-api` emite logs JSON estructurados (`nestjs-pino`, ver `ticket-hub-api/.claude/exception-filters-conventions.md` y `src/instrument/logger/`) — se puede filtrar por campos con `| json`, por ejemplo `{namespace="ticket-hub", container="ticket-hub-api"} | json | level="error"`.
+
+## 6. Métrica de duración de request, sin desplegar Prometheus
+
+`pino-http` ya loguea `responseTime` (en milisegundos) en la línea `"request completed"` de cada request — no hace falta instrumentar nada nuevo en la app ni desplegar un sistema de métricas aparte. LogQL puede agregar directamente sobre ese campo.
+
+En Grafana: **Dashboards → New → Add visualization**, datasource Loki, tipo **Time series**, con esta query:
+
+```
+quantile_over_time(0.95, {namespace="ticket-hub", container="ticket-hub-api"} |= "responseTime" | json | unwrap responseTime [$__interval])
+```
+
+- `|= "responseTime"` — filtro de texto plano *antes* de parsear JSON: descarta rápido las líneas que ni siquiera tienen el campo (arranque de NestJS, líneas de los exception filters), sin gastar CPU parseándolas todas.
+- `| json` — parsea la línea como JSON y expone sus campos.
+- `| unwrap responseTime` — le dice a LogQL que agregue sobre ese campo numérico, en vez de solo contar líneas.
+- `quantile_over_time(0.95, ..., [$__interval])` — percentil 95, en la ventana de tiempo que Grafana ajusta sola según el zoom del panel.
+
+Para ver varios percentiles juntos, agregar una query por cada uno en el mismo panel:
+
+```
+quantile_over_time(0.50, {namespace="ticket-hub", container="ticket-hub-api"} |= "responseTime" | json | unwrap responseTime [$__interval])
+quantile_over_time(0.95, {namespace="ticket-hub", container="ticket-hub-api"} |= "responseTime" | json | unwrap responseTime [$__interval])
+quantile_over_time(0.99, {namespace="ticket-hub", container="ticket-hub-api"} |= "responseTime" | json | unwrap responseTime [$__interval])
+```
+
+> **Nota sobre esta elección:** esto agrega sobre líneas de log, no sobre un histograma nativo como el de Prometheus — para el volumen de tráfico de este cluster no es un problema, pero es más costoso a medida que el tráfico crece. Si en algún momento eso empieza a pesar (paneles lentos, mucho volumen), esa es la señal para reconsiderar desplegar Prometheus + `@willsoto/nestjs-prometheus` en vez de esto — se descartó a propósito por ahora para no sumar otra pieza de infra sin necesidad real.
