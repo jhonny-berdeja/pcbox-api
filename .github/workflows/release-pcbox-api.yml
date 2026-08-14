@@ -1,0 +1,218 @@
+
+name: Release pcbox-api
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_stable_tag:
+        description: "Tag that stays as the last known-good stable version"
+        required: true
+        type: string
+      new_tag:
+        description: "New version tag to build, publish, and deploy"
+        required: true
+        type: string
+
+concurrency:
+  group: release-pcbox-api
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate-tags:
+    name: Validate the previous stable and new tags before anything else runs.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the repository to access the code, scripts, and tags.
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Save the previous stable tag input to GITHUB_ENV.
+        env:
+          PREVIOUS_STABLE_TAG: ${{ inputs.previous_stable_tag }}
+        run: echo "PREVIOUS_STABLE_TAG=$PREVIOUS_STABLE_TAG" >> "$GITHUB_ENV"
+
+      - name: Save the new tag input to GITHUB_ENV.
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+        run: echo "NEW_TAG=$NEW_TAG" >> "$GITHUB_ENV"
+
+      - name: Validate the previous stable tag before it reaches later shell commands.
+        run: .github/scripts/validate-image-tag.sh "$PREVIOUS_STABLE_TAG"
+
+      - name: Validate the new tag before it reaches later shell commands.
+        run: .github/scripts/validate-image-tag.sh "$NEW_TAG"
+
+      - name: Assert the new tag does not already exist as a git tag.
+        run: .github/scripts/assert-git-tag-existence.sh not-exists "$NEW_TAG"
+
+      - name: Assert the previous stable tag exists as a git tag.
+        run: .github/scripts/assert-git-tag-existence.sh exists "$PREVIOUS_STABLE_TAG"
+
+      - name: Build the Docker Hub Hub API login request body.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          LOGIN_BODY="$(.github/scripts/build-docker-hub-api-login-body.sh)"
+          echo "LOGIN_BODY=$LOGIN_BODY" >> "$GITHUB_ENV"
+
+      - name: Call the Docker Hub Hub API login endpoint.
+        run: |
+          UNVALIDATED_HUB_API_TOKEN="$(.github/scripts/call-docker-hub-api-login.sh "$LOGIN_BODY")"
+          echo "UNVALIDATED_HUB_API_TOKEN=$UNVALIDATED_HUB_API_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Validate and mask the JWT token returned by the Docker Hub Hub API login, and save it to the GITHUB_ENV file.
+        run: |
+          .github/scripts/validate-docker-hub-api-token.sh "$UNVALIDATED_HUB_API_TOKEN"
+          echo "::add-mask::$UNVALIDATED_HUB_API_TOKEN"
+          echo "HUB_API_TOKEN=$UNVALIDATED_HUB_API_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Assert the new tag does not already exist in Docker Hub.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: .github/scripts/assert-docker-hub-tag-existence.sh not-exists pcbox-api "$NEW_TAG"
+
+      - name: Assert the previous stable tag exists in Docker Hub.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: .github/scripts/assert-docker-hub-tag-existence.sh exists pcbox-api "$PREVIOUS_STABLE_TAG"
+
+  build-and-push:
+    name: Build and push the pcbox-api image, and create the git tag.
+    needs: validate-tags
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Clone the repository to access the code and scripts.
+        uses: actions/checkout@v4
+
+      - name: Save the new tag input to GITHUB_ENV.
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+        run: echo "NEW_TAG=$NEW_TAG" >> "$GITHUB_ENV"
+
+      - name: Log in to Docker Hub.
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push pcbox-api image to Docker Hub.
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/pcbox-api:${{ inputs.new_tag }}
+
+      - name: Create the git tag and push it to the repository.
+        run: .github/scripts/create-git-tag.sh "$NEW_TAG"
+
+  approve-and-deploy:
+    name: "Approve: infra-hub will deploy pcbox-api to pcbox microk8s."
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://github.com/${{ github.repository_owner }}/infra-hub/actions/workflows/deploy-pcbox-api.yml
+    steps:
+      - name: Clone the repository to access the code and scripts.
+        uses: actions/checkout@v4
+
+      - name: Save the current UTC time before dispatching the infra-hub deploy.
+        run: echo "DISPATCH_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
+      - name: Enable workflow_dispatch in infra-hub to deploy the pcbox-api image.
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_HUB_DISPATCH_TOKEN }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+          IMAGE_TAG: ${{ inputs.new_tag }}
+        run: .github/scripts/dispatch-infra-hub-deploy.sh "$REPOSITORY_OWNER" "$IMAGE_TAG"
+
+      - name: Post a notice that this job now depends on the infra-hub deploy run.
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          echo "::notice title=Este paso depende de infra-hub::El deploy real corre en otro workflow, no acá. Seguilo en vivo y confirmá que termine bien: https://github.com/$REPOSITORY_OWNER/infra-hub/actions/workflows/deploy-pcbox-api.yml"
+
+      - name: Write the infra-hub deploy link to GITHUB_STEP_SUMMARY.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          IMAGE_TAG: ${{ inputs.new_tag }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: .github/scripts/render-infra-hub-dispatch-summary.sh "$DOCKERHUB_USERNAME" "$IMAGE_TAG" "$REPOSITORY_OWNER" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for the dispatched infra-hub deploy run to finish.
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_HUB_DISPATCH_TOKEN }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: .github/scripts/wait-for-infra-hub-deploy.sh "$REPOSITORY_OWNER" "$DISPATCH_TIME"
+
+  cleanup-tags:
+    name: Delete every pcbox-api Docker Hub tag except the two kept tags.
+    needs: approve-and-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the repository to access the code and scripts.
+        uses: actions/checkout@v4
+
+      - name: Save the previous stable tag input to GITHUB_ENV.
+        env:
+          PREVIOUS_STABLE_TAG: ${{ inputs.previous_stable_tag }}
+        run: echo "PREVIOUS_STABLE_TAG=$PREVIOUS_STABLE_TAG" >> "$GITHUB_ENV"
+
+      - name: Save the new tag input to GITHUB_ENV.
+        env:
+          NEW_TAG: ${{ inputs.new_tag }}
+        run: echo "NEW_TAG=$NEW_TAG" >> "$GITHUB_ENV"
+
+      - name: Build the Docker Hub Hub API login request body.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          LOGIN_BODY="$(.github/scripts/build-docker-hub-api-login-body.sh)"
+          echo "LOGIN_BODY=$LOGIN_BODY" >> "$GITHUB_ENV"
+
+      - name: Call the Docker Hub Hub API login endpoint.
+        run: |
+          UNVALIDATED_HUB_API_TOKEN="$(.github/scripts/call-docker-hub-api-login.sh "$LOGIN_BODY")"
+          echo "UNVALIDATED_HUB_API_TOKEN=$UNVALIDATED_HUB_API_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Validate and mask the JWT token returned by the Docker Hub Hub API login, and save it to the GITHUB_ENV file.
+        run: |
+          .github/scripts/validate-docker-hub-api-token.sh "$UNVALIDATED_HUB_API_TOKEN"
+          echo "::add-mask::$UNVALIDATED_HUB_API_TOKEN"
+          echo "HUB_API_TOKEN=$UNVALIDATED_HUB_API_TOKEN" >> "$GITHUB_ENV"
+
+      - name: List every tag that exists today in the pcbox-api repository on Docker Hub.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: .github/scripts/list-docker-hub-tags.sh pcbox-api > /tmp/all-tags.txt
+
+      - name: Save the previous stable and new tags to the keep-list file.
+        run: .github/scripts/filter-tags.sh keep /tmp/all-tags.txt "$PREVIOUS_STABLE_TAG" "$NEW_TAG" > /tmp/tags-to-keep.txt
+
+      - name: Save every tag except the previous stable and new tags to the delete-list file.
+        run: .github/scripts/filter-tags.sh delete /tmp/all-tags.txt "$PREVIOUS_STABLE_TAG" "$NEW_TAG" > /tmp/tags-to-delete.txt
+
+      - name: Delete every tag in the delete-list file.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: .github/scripts/delete-docker-hub-tags.sh pcbox-api /tmp/tags-to-delete.txt
+
+      - name: Write the kept tags to GITHUB_STEP_SUMMARY.
+        run: .github/scripts/render-kept-tags-summary.sh "$PREVIOUS_STABLE_TAG" "$NEW_TAG" /tmp/tags-to-keep.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write the deleted tags to GITHUB_STEP_SUMMARY.
+        run: .github/scripts/render-deleted-tags-summary.sh /tmp/tags-to-delete.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write the Docker Hub tags link to GITHUB_STEP_SUMMARY.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: .github/scripts/render-docker-hub-link-summary.sh "$DOCKERHUB_USERNAME" >> "$GITHUB_STEP_SUMMARY"
