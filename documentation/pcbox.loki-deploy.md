@@ -302,6 +302,19 @@ spec:
           image: grafana/promtail:3.3.0
           args:
             - -config.file=/etc/promtail/promtail.yaml
+          env:
+            # Promtail agrega automáticamente un selector
+            # `spec.nodeName=$HOSTNAME` a su kubernetes_sd_config de rol
+            # `pod`, para que cada Pod del DaemonSet descubra solo los pods
+            # de su propio nodo. Dentro de un contenedor, `HOSTNAME` es por
+            # default el nombre del Pod (`promtail-xxxxx`), no el nombre
+            # real del nodo — sin este override el selector nunca matchea
+            # nada y kubernetes-pods queda en 0/0 targets. Downward API
+            # para forzar el valor correcto.
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: config
               mountPath: /etc/promtail
@@ -333,6 +346,12 @@ microk8s kubectl logs -n loki daemonset/promtail
 ```
 
 Con microk8s corriendo en un solo nodo va a aparecer un único Pod `promtail-...` en `Running`. En los logs, buscar líneas de nivel `info` sin errores de conexión a `loki.loki.svc.cluster.local:3100` — un error ahí (`connection refused`) suele significar que el Service de Loki todavía no está listo.
+
+> **Nota — `Running` sin errores no alcanza:** confirmá también que el service discovery encontró algo, no solo que el Pod está sano:
+> ```bash
+> microk8s kubectl exec -n loki daemonset/promtail -- wget -qO- http://localhost:9080/targets
+> ```
+> Si el job `kubernetes-pods` aparece como `0/0 ready` sin ningún error en los logs, el `env: HOSTNAME` del paso anterior no se aplicó — es la causa más común de este síntoma (Promtail filtra por nodo usando un `HOSTNAME` que en realidad es el nombre del propio Pod, no del nodo).
 
 ## 4. Agregar Loki como datasource en Grafana
 
