@@ -1,10 +1,10 @@
 # Deploy de Grafana en microk8s (servidor pcbox)
 
-Instructivo para levantar Grafana como un Pod dentro del cluster de microk8s del servidor `pcbox`, con sus datos (dashboards, usuarios, configuración) en un volumen persistente y sus credenciales de admin en un Secret de Kubernetes — mismo patrón ya usado para la base `ticket-hub-db` (ver `pcbox.bootstrap.md`, paso 8).
+Instructivo para levantar Grafana como un Pod dentro del cluster de microk8s del servidor `pcbox`, con sus datos (dashboards, usuarios, configuración) en un volumen persistente y sus credenciales de admin en un Secret de Kubernetes — mismo patrón ya usado para la base `ticket-hub-db` (ver `pcbox.bootstrap.md`, paso 6).
 
 ## 0. Punto de partida
 
-Todo este instructivo asume que ya se completó el bootstrap del servidor (`pcbox.bootstrap.md`, pasos 1 a 6): Tailscale instalado y configurado, clave SSH sin contraseña, y microk8s corriendo con el addon `hostpath-storage` habilitado (paso 8.1 de ese documento — si todavía no está habilitado, correr `microk8s enable hostpath-storage` antes de seguir).
+Todo este instructivo asume que ya se completó el bootstrap del servidor (`pcbox.bootstrap.md`, pasos 1 a 4, y `pcbox.microk8s-setup.md` entero): Tailscale instalado y configurado, clave SSH sin contraseña, y microk8s corriendo con el addon `hostpath-storage` habilitado (`pcbox.ticket-hub-db-deploy.md`, paso 1 — si todavía no está habilitado, correr `microk8s enable hostpath-storage` antes de seguir).
 
 Conectarse al servidor por SSH sobre la IP de Tailscale (`SSH_HOST`, `100.x.x.x`):
 
@@ -33,7 +33,7 @@ microk8s kubectl create secret generic grafana-admin-credentials \
   --from-literal=GF_SECURITY_ADMIN_PASSWORD=clave_segura
 ```
 
-> **Nota:** igual que con `ticket-hub-db-credentials`, esta es la única vez que la contraseña se escribe a mano por línea de comandos. Para rotarla después, editar este Secret desde el Dashboard de microk8s (`pcbox.bootstrap.md`, paso 7 → Secrets → namespace `grafana`) y reiniciar el Pod (`microk8s kubectl rollout restart deployment/grafana -n grafana`) — Grafana solo relee las variables de entorno al arrancar.
+> **Nota:** igual que con `ticket-hub-db-credentials`, esta es la única vez que la contraseña se escribe a mano por línea de comandos. Para rotarla después, editar este Secret desde el Dashboard de microk8s (`pcbox.microk8s-setup.md`, paso 3 → Secrets → namespace `grafana`) y reiniciar el Pod (`microk8s kubectl rollout restart deployment/grafana -n grafana`) — Grafana solo relee las variables de entorno al arrancar.
 
 ## 3. Crear el volumen persistente, el Deployment y el Service
 
@@ -103,7 +103,7 @@ spec:
       targetPort: 3000
 ```
 
-> **Nota sobre `securityContext.fsGroup: 472`:** el contenedor de Grafana corre como el usuario `grafana` (UID/GID `472`), no como `root`. Un volumen `hostPath`/`microk8s-hostpath` recién creado queda con dueño `root` por defecto — sin este `fsGroup`, Grafana no puede escribir en `/var/lib/grafana` y el Pod queda en `CrashLoopBackOff` con "permission denied" en los logs. `fsGroup` le dice a Kubernetes que ajuste el grupo dueño del volumen a `472` al montarlo, antes de que arranque el contenedor — mismo tipo de ajuste que el subdirectorio `PGDATA` resolvió para Postgres en `pcbox.bootstrap.md` (paso 8.5), pero para el problema de permisos en vez del de "directorio no vacío".
+> **Nota sobre `securityContext.fsGroup: 472`:** el contenedor de Grafana corre como el usuario `grafana` (UID/GID `472`), no como `root`. Un volumen `hostPath`/`microk8s-hostpath` recién creado queda con dueño `root` por defecto — sin este `fsGroup`, Grafana no puede escribir en `/var/lib/grafana` y el Pod queda en `CrashLoopBackOff` con "permission denied" en los logs. `fsGroup` le dice a Kubernetes que ajuste el grupo dueño del volumen a `472` al montarlo, antes de que arranque el contenedor — mismo tipo de ajuste que el subdirectorio `PGDATA` resolvió para Postgres en `pcbox.ticket-hub-db-deploy.md` (paso 5), pero para el problema de permisos en vez del de "directorio no vacío".
 
 ```bash
 microk8s kubectl apply -f ~/grafana.yaml
@@ -125,7 +125,7 @@ Buscar una línea tipo `HTTP Server Listen ... address=[::]:3000` — confirma q
 
 ## 5. Exponer Grafana con un túnel systemd
 
-Mismo mecanismo que el Dashboard de microk8s (`pcbox.bootstrap.md`, paso 7): un servicio systemd en vez de un `port-forward` manual, para que sobreviva a que se cierre la sesión SSH y se reinicie solo si falla.
+Mismo mecanismo que el Dashboard de microk8s (`pcbox.microk8s-setup.md`, paso 3): un servicio systemd en vez de un `port-forward` manual, para que sobreviva a que se cierre la sesión SSH y se reinicie solo si falla.
 
 ```bash
 sudo nano /etc/systemd/system/grafana-tunnel.service
