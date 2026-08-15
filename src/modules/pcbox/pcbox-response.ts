@@ -1,4 +1,12 @@
-/** Public response shape for `POST /pcbox` — the saved record plus a clear confirmation of the playbook run (full stdout/stderr stay in the log, never the HTTP response — see AnsibleService). */
+/**
+ * Public response shape for `POST /pcbox` — the saved record plus the
+ * full result of the playbook run. `stdout`/`stderr` used to be
+ * deliberately excluded here ("reveal the minimum" — see git history if
+ * you need the old reasoning); now included on purpose so the caller
+ * (a human admin, or ticket-hub-api's `ApproveTicketService`, see
+ * pcbox-api's own `.claude/CLAUDE.md`) can show the complete execution
+ * output, not just success/failure.
+ */
 export interface PcboxResponse {
   id: number;
   ticketNumber: number;
@@ -10,5 +18,7 @@ export interface PcboxResponse {
   execution: {
     success: boolean;
     exitCode: number | null;
+    stdout: string;
+    stderr: string;
   };
 }

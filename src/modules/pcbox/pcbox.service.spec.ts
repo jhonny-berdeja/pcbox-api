@@ -73,7 +73,7 @@ describe('PcboxService', () => {
       msg: 'Administration saved and playbook execution finished',
       data: expect.objectContaining({
         id: 1,
-        execution: { success: true, exitCode: 0 },
+        execution: { success: true, exitCode: 0, stdout: '', stderr: '' },
       }) as unknown,
     });
   });

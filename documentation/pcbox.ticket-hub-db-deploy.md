@@ -239,15 +239,17 @@ columna nueva se aplica a mano con `ALTER TABLE` — pero más simple que
 `SET NOT NULL`. Conectado al contenedor y a `psql` igual que en el paso 7:
 
 ```sql
-ALTER TABLE tickets ADD COLUMN response VARCHAR(600);
+ALTER TABLE tickets ADD COLUMN response TEXT;
 ```
 
-`response` guarda el resumen que devuelve `pcbox-api` (o una descripción
-de la falla) cuando `ApproveTicketService` la llama justo después de
-aprobar un ticket — nunca el stdout/stderr completo, ver
-`ticket-hub-api/.claude/CLAUDE.md`. Queda `NULL` para cualquier ticket
-que todavía no pasó por ese flujo (los ya creados antes de esta
-migración, y cualquiera en estado `CREATED`).
+`TEXT`, no un `VARCHAR` acotado: `response` guarda la respuesta completa
+de `pcbox-api` (`msg` + resultado de la ejecución + `stdout`/`stderr`
+enteros) o una descripción de la falla, cuando `ApproveTicketService` la
+llama justo después de aprobar un ticket — ver
+`ticket-hub-api/.claude/CLAUDE.md`. El stdout de un playbook no tiene un
+tope predecible, así que no tiene sentido acotar la columna. Queda `NULL`
+para cualquier ticket que todavía no pasó por ese flujo (los ya creados
+antes de esta migración, y cualquiera en estado `CREATED`).
 
 Verificar:
 
@@ -255,7 +257,7 @@ Verificar:
 \d tickets
 ```
 
-Debería listar `response` como `character varying(600)`, sin `not null`.
+Debería listar `response` como `text`, sin `not null`.
 
 ## 9. El secreto para que `ticket-hub-api` le hable a `pcbox-api` — `pcbox-api-notification-credentials`
 
