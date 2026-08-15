@@ -64,6 +64,15 @@ export class AnsibleConnector {
       sshUser,
       '--private-key',
       AnsibleConnector.SSH_PRIVATE_KEY_PATH,
+      // This container is ephemeral — it never has pcbox's SSH host key
+      // in a persisted known_hosts, so strict checking fails every
+      // single connection, not just the first. Private-key auth already
+      // establishes who WE are to the server; this only skips verifying
+      // who the server is to us, acceptable here since the target is a
+      // single fixed host reachable only over the private Tailscale
+      // overlay, never the public internet.
+      '--ssh-common-args',
+      '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null',
       playbookPath,
     ];
   }

@@ -64,6 +64,8 @@ describe('AnsibleConnector', () => {
         'jhon',
         '--private-key',
         '/etc/ssh-keys/pcbox_deploy_key',
+        '--ssh-common-args',
+        '-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null',
       ]) as unknown,
       expect.any(Object) as unknown,
       expect.any(Function) as unknown,
