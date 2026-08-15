@@ -141,11 +141,14 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
         informer: 'Ana',
         status: 'APPROVED',
         fileContent: validBody().fileContent,
-        execution: { success: true, exitCode: 0 },
+        execution: {
+          success: true,
+          exitCode: 0,
+          stdout: 'PLAY [all] ***',
+          stderr: '',
+        },
       },
     });
-    // Full stdout/stderr never reach the HTTP response.
-    expect(JSON.stringify(response.body)).not.toContain('PLAY [all]');
 
     await expect(repository.find()).resolves.toHaveLength(1);
     expect(executeMock).toHaveBeenCalledWith(validBody().fileContent);
@@ -166,9 +169,21 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
       .expect(201);
 
     const body = response.body as {
-      data: { execution: { success: boolean; exitCode: number | null } };
+      data: {
+        execution: {
+          success: boolean;
+          exitCode: number | null;
+          stdout: string;
+          stderr: string;
+        };
+      };
     };
-    expect(body.data.execution).toEqual({ success: false, exitCode: 2 });
+    expect(body.data.execution).toEqual({
+      success: false,
+      exitCode: 2,
+      stdout: '',
+      stderr: 'UNREACHABLE',
+    });
     await expect(repository.find()).resolves.toHaveLength(1);
   });
 });

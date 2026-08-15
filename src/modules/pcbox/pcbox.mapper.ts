@@ -16,7 +16,7 @@ export class PcboxMapper {
       .build();
   }
 
-  /** Persisted entity + the playbook run's result → public response. Full stdout/stderr are deliberately left out — see PcboxResponse. */
+  /** Persisted entity + the playbook run's result → public response. Full stdout/stderr now included on purpose — see PcboxResponse. */
   static toResponse(
     administration: AdministrationEntity,
     execution: AnsibleExecutionResult,
@@ -32,6 +32,8 @@ export class PcboxMapper {
       execution: {
         success: execution.success,
         exitCode: execution.exitCode,
+        stdout: execution.stdout,
+        stderr: execution.stderr,
       },
     };
   }

@@ -30,7 +30,7 @@ describe('PcboxMapper', () => {
   });
 
   describe('toResponse', () => {
-    it('includes success/exitCode from the execution result, never stdout/stderr', () => {
+    it('includes the full execution result, stdout/stderr included', () => {
       const entity = Object.assign(PcboxMapper.toEntity(buildDto()), {
         id: 7,
       });
@@ -51,14 +51,16 @@ describe('PcboxMapper', () => {
         informer: 'Ana',
         status: 'APPROVED',
         fileContent: '- hosts: all\n  tasks: []\n',
-        execution: { success: true, exitCode: 0 },
+        execution: {
+          success: true,
+          exitCode: 0,
+          stdout: 'PLAY [all] ***',
+          stderr: '',
+        },
       });
-      // The whole point of a dedicated `execution: {success, exitCode}`
-      // shape: stdout/stderr must never leak into the HTTP response.
-      expect(JSON.stringify(response)).not.toContain('PLAY [all]');
     });
 
-    it('carries a failed run through the same shape, exitCode included', () => {
+    it('carries a failed run through the same shape, exitCode and stderr included', () => {
       const entity = Object.assign(PcboxMapper.toEntity(buildDto()), {
         id: 8,
       });
@@ -71,7 +73,12 @@ describe('PcboxMapper', () => {
 
       const response = PcboxMapper.toResponse(entity, execution);
 
-      expect(response.execution).toEqual({ success: false, exitCode: 2 });
+      expect(response.execution).toEqual({
+        success: false,
+        exitCode: 2,
+        stdout: '',
+        stderr: 'UNREACHABLE',
+      });
     });
   });
 });
