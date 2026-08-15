@@ -1,6 +1,6 @@
 # Secrets propios de `pcbox-api` para `POST /pcbox`
 
-Este documento cubre los tres Secrets que la app `pcbox-api` necesita en su
+Este documento cubre los dos Secrets que la app `pcbox-api` necesita en su
 propio namespace (`pcbox-api`) para que el endpoint `POST /pcbox`
 funcione, además de la base `pcbox-db` (`pcbox.pcbox-db-deploy.md`). Se
 asume que la app ya tiene su Deployment/Service desplegados vía el pipeline
@@ -77,26 +77,7 @@ privada que use directamente (rechaza claves con permisos más abiertos).
 Borrar `pcbox_app_key`/`pcbox_app_key.pub` del disco local una vez creado
 el Secret — no hace falta conservarlos fuera de Kubernetes.
 
-## 2. El secreto compartido con ticket-hub-api — `ticket-hub-verification-credentials`
-
-`TICKET_HUB_API_INTERNAL_KEY` tiene que ser **exactamente** el mismo valor
-que `INTERNAL_API_KEY` en el namespace `ticket-hub` (ver
-`ticket-hub-api/README.md`) — son dos Secrets de Kubernetes distintos,
-porque un Secret no cruza namespaces, pero el valor adentro tiene que
-coincidir byte a byte o `TicketHubVerificationService` recibe siempre `401`
-desde ticket-hub-api.
-
-```bash
-microk8s kubectl create secret generic ticket-hub-verification-credentials \
-  -n pcbox-api \
-  --from-literal=TICKET_HUB_API_INTERNAL_KEY=<mismo valor que INTERNAL_API_KEY en el namespace ticket-hub>
-```
-
-Si `INTERNAL_API_KEY` se rota más adelante en `ticket-hub`, este Secret
-tiene que rotarse al mismo valor en el mismo momento — no hay ningún
-mecanismo automático que los mantenga sincronizados.
-
-## 3. El secreto propio de este endpoint — `pcbox-api-admin-credentials`
+## 2. El secreto propio de este endpoint — `pcbox-api-admin-credentials`
 
 El valor que cualquier caller de `POST /pcbox` tiene que mandar
 en el header `x-admin-api-key` (ver `AdminApiKeyGuard`). A diferencia del
@@ -109,10 +90,9 @@ microk8s kubectl create secret generic pcbox-api-admin-credentials \
   --from-literal=ADMIN_API_KEY=clave_segura
 ```
 
-## 4. Datos que quedan de este proceso
+## 3. Datos que quedan de este proceso
 
 | Dato | Qué es | De qué paso salió | Para qué es |
 |---|---|---|---|
 | Secret `pcbox-ssh-key` (namespace `pcbox-api`, montado como archivo) | Clave privada SSH con acceso administrativo real a `pcbox` | Paso 1 | Autenticación de `AnsibleExecutionService` contra `pcbox` vía `ansible-playbook --private-key` |
-| Secret `ticket-hub-verification-credentials` (namespace `pcbox-api`) | `TICKET_HUB_API_INTERNAL_KEY`, debe igualar `INTERNAL_API_KEY` del namespace `ticket-hub` | Paso 2 | Header `x-internal-api-key` que `TicketHubVerificationService` manda a ticket-hub-api |
-| Secret `pcbox-api-admin-credentials` (namespace `pcbox-api`) | `ADMIN_API_KEY` | Paso 3 | Header `x-admin-api-key` que `AdminApiKeyGuard` exige en `POST /pcbox` |
+| Secret `pcbox-api-admin-credentials` (namespace `pcbox-api`) | `ADMIN_API_KEY` | Paso 2 | Header `x-admin-api-key` que `AdminApiKeyGuard` exige en `POST /pcbox` |

@@ -20,7 +20,7 @@ Con eso, el ecosistema ya queda montado. Lo único que va quedando pendiente de 
 
 ## Qué hace esta app
 
-Un único endpoint, `POST /pcbox`: recibe un playbook de Ansible (YAML) más metadata de un ticket, valida ese ticket contra `ticket-hub-api`, y si todo matchea guarda el registro en la tabla `administrations` y ejecuta el playbook contra el servidor `pcbox` real por SSH. Ver `.claude/CLAUDE.md` para la arquitectura completa.
+Un único endpoint, `POST /pcbox`: recibe un playbook de Ansible (YAML) más metadata de un ticket, y si el `status` es `APPROVED` y el YAML parsea, guarda el registro en la tabla `administrations` y ejecuta el playbook contra el servidor `pcbox` real por SSH. La metadata del ticket (`ticketNumber`/`department`/`approver`/`informer`) se guarda tal cual se recibe — ya no se valida contra `ticket-hub-api`. Ver `.claude/CLAUDE.md` para la arquitectura completa.
 
 ## Environment variables
 
@@ -39,8 +39,6 @@ at boot if any is missing).
 | `DATABASE_NAME` | Yes | literal `env:` → `pcbox-db` | Database name |
 | `PORT` | Yes | literal `env:` → `3000` | HTTP port the Nest app listens on |
 | `LOG_LEVEL` | Yes | literal `env:` → `info` | Minimum pino log level (`trace`/`debug`/`info`/`warn`/`error`/`fatal`) |
-| `TICKET_HUB_API_URL` | Yes | literal `env:` → `http://ticket-hub-api.ticket-hub.svc.cluster.local:3000` | Base URL of ticket-hub-api, used to call `GET /tickets/:number/verify` |
-| `TICKET_HUB_API_INTERNAL_KEY` | Yes | `secretRef: ticket-hub-verification-credentials` | Must hold the **same value** as ticket-hub-api's own `INTERNAL_API_KEY` — provisioned as a separate Secret here, Kubernetes Secrets don't cross namespaces |
 | `ADMIN_API_KEY` | Yes | `secretRef: pcbox-api-admin-credentials` | Shared secret this app itself requires via `x-admin-api-key` on `POST /pcbox` |
 | `PCBOX_SSH_HOST` | Yes | literal `env:` → same Tailscale IP as the `SSH_HOST` secret in `pcbox.bootstrap.md` | Host of the `pcbox` server the app SSHes into to run playbooks |
 | `PCBOX_SSH_USER` | Yes | literal `env:` → same value as `SSH_USER` in `pcbox.bootstrap.md` | SSH user the app authenticates as |
@@ -57,10 +55,10 @@ routine config value.
 Kubernetes Deployment/Service manifests for this app live in the separate
 `infra-hub` repo, the same pattern as `ticket-hub-api` — not in this repo.
 All automated tests here run against a mocked repository (in-memory SQLite
-for e2e) and mocked `fetch`/`execFile` (see
+for e2e) and mocked `execFile` (see
 `src/modules/pcbox/*.spec.ts` and
 `test/modules/pcbox/pcbox.e2e-spec.ts`), never a real
-Postgres, ticket-hub-api, or SSH connection — by design, this environment
+Postgres or SSH connection — by design, this environment
 cannot run `ansible-playbook` against a real server. The checklist below is
 the only way to confirm the real playbook execution actually works, and it
 needs `pcbox.administrations-deploy.md`'s Secret to already exist in-cluster.
@@ -76,11 +74,11 @@ Should show `Running`, with Nest's route map at boot (`Mapped
 {/pcbox, POST}`) and no `Missing required environment variable(s)`
 error.
 
-### 2. Exercise `POST /pcbox` against a real, APPROVED ticket
+### 2. Exercise `POST /pcbox`
 
-Requires a ticket in `ticket-hub-db` with `status = 'APPROVED'` and a known
-`department`/`creator`/`assignee` — create and approve one through
-`ticket-hub`/`ticket-hub-api` first.
+No ticket lookup happens anymore — any `ticketNumber`/`department`/
+`approver`/`informer` combination is accepted and saved as-is, as long as
+`status` is `'APPROVED'` and `fileContent` parses as YAML.
 
 ```bash
 microk8s kubectl port-forward -n pcbox-api svc/pcbox-api 3000:3000
@@ -117,8 +115,7 @@ microk8s kubectl exec -it -n pcbox-api deployment/pcbox-db -- \
 ### 3. Confirm the failure paths
 
 - Wrong/missing `x-admin-api-key` → `401`.
-- `status` other than `APPROVED` → `400`, nothing saved, ticket-hub-api never called (confirm via Loki: no outbound request logged).
-- A ticket number/department/status/informer/approver combination that ticket-hub-api doesn't confirm → `422`, nothing saved, `ansible-playbook` never invoked.
+- `status` other than `APPROVED` → `400`, nothing saved.
 - Unparseable `fileContent` → `400`, nothing saved.
 
 ## Project setup

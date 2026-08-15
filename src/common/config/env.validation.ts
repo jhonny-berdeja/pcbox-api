@@ -49,27 +49,6 @@ export class EnvironmentVariables {
   @IsIn(PINO_LOG_LEVELS)
   LOG_LEVEL!: string;
 
-  /**
-   * Base URL of ticket-hub-api's `GET /tickets/:number/verify`, e.g.
-   * `http://ticket-hub-api.ticket-hub.svc.cluster.local:3000` — in-cluster
-   * DNS, never a public address. Not `@IsUrl()`: that validator requires a
-   * public-looking TLD and rejects `*.svc.cluster.local` hostnames.
-   */
-  @IsString()
-  @IsNotEmpty()
-  TICKET_HUB_API_URL!: string;
-
-  /**
-   * Shared secret sent as `x-internal-api-key` when calling ticket-hub-api's
-   * verify endpoint — must hold the exact same value as ticket-hub-api's own
-   * `INTERNAL_API_KEY`. Provisioned as a separate Secret in this namespace
-   * (Kubernetes Secrets don't cross namespaces), see
-   * documentation/pcbox.administrations-deploy.md.
-   */
-  @IsString()
-  @IsNotEmpty()
-  TICKET_HUB_API_INTERNAL_KEY!: string;
-
   /** Shared secret this app itself requires via `x-admin-api-key` on POST /pcbox — see AdminApiKeyGuard. */
   @IsString()
   @IsNotEmpty()

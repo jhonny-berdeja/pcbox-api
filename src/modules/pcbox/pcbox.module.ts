@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PcboxController } from './pcbox.controller';
 import { PcboxService } from './pcbox.service';
-import { TicketHubApiModule } from '../ticket-hub-api/ticket-hub-api.module';
 import { AnsibleModule } from '../ansible/ansible.module';
 import { AdminApiKeyGuard } from './guards/admin-api-key.guard';
 
@@ -11,13 +10,15 @@ import { AdminApiKeyGuard } from './guards/admin-api-key.guard';
  * `@Global()` `LoggerModule` — same reasoning as ticket-hub-api's
  * `TicketsModule`, none of them need to be imported here.
  *
- * `TicketHubApiModule`/`AnsibleModule` DO need to be imported: they're
- * ordinary (non-global) feature modules, each owning one external
- * integration (the outbound call to ticket-hub-api, the `ansible-playbook`
- * child process) — split out so each can be read/tested independent of
+ * `AnsibleModule` DOES need to be imported: it's an ordinary (non-global)
+ * feature module owning one external integration (the `ansible-playbook`
+ * child process) — split out so it can be read/tested independent of
  * `pcbox`'s own HTTP contract. One-directional dependency (`pcbox` →
- * `ticket-hub-api`/`ansible`, never the reverse) — see each of their own
- * module comments.
+ * `ansible`, never the reverse) — see its own module comment.
+ *
+ * There is no verification against ticket-hub-api anymore — `pcbox` used
+ * to import a `ticket-hub-api/` module for that (see git history if you
+ * need it), removed once that check stopped being a requirement.
  *
  * `AdminApiKeyGuard` is listed as a provider even though it's applied via
  * `@UseGuards()` at the controller level, not `APP_GUARD`: Nest's DI still
@@ -26,7 +27,7 @@ import { AdminApiKeyGuard } from './guards/admin-api-key.guard';
  * `TicketsModule` lists `InternalApiKeyGuard`.
  */
 @Module({
-  imports: [TicketHubApiModule, AnsibleModule],
+  imports: [AnsibleModule],
   controllers: [PcboxController],
   providers: [PcboxService, AdminApiKeyGuard],
 })

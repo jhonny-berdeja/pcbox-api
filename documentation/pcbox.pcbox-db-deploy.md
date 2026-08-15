@@ -83,14 +83,15 @@ microk8s kubectl apply -f ~/pcbox-db-init.yaml
 
 > **Nota sobre el esquema:** todas las columnas son `NOT NULL` a propósito
 > — a diferencia de `tickets.assignee` en `ticket-hub-db`, un registro de
-> `administrations` solo se escribe una vez que la app ya validó los tres
-> gates (status local, match contra ticket-hub-api, YAML parseable — ver
-> `.claude/CLAUDE.md`), así que nunca hay un registro parcial que
-> representar. `ticket_number` es un entero simple, no una foreign key:
-> `administrations` vive en una base y un namespace completamente
-> separados de `ticket-hub-db`/`ticket-hub`, así que no hay forma de que
-> Postgres valide esa referencia directamente — la validación real ocurre
-> en la app, contra `ticket-hub-api`, antes del insert.
+> `administrations` solo se escribe una vez que la app ya validó los dos
+> gates (status local, YAML parseable — ver `.claude/CLAUDE.md`), así que
+> nunca hay un registro parcial que representar. `ticket_number` es un
+> entero simple, no una foreign key: `administrations` vive en una base y
+> un namespace completamente separados de `ticket-hub-db`/`ticket-hub`, así
+> que no hay forma de que Postgres valide esa referencia directamente —
+> tampoco la app la valida ya: `ticket_number`/`department`/`approver`/
+> `informer` se guardan tal cual se reciben, sin contrastarlos contra
+> ticket-hub-api.
 
 ## 4. Crear el volumen persistente, el Deployment y el Service
 

@@ -5,9 +5,8 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
  * documentation/pcbox.pcbox-db-deploy.md for the init schema). Every
  * column is `NOT NULL` — unlike `TicketEntity.assignee` in ticket-hub-api,
  * nothing here is optional: an administration record is only ever written
- * after every field has already been validated (local status check,
- * ticket-hub-api match, YAML parseability), so there's never a partial
- * row to represent.
+ * after every field has already been validated (local status check, YAML
+ * parseability), so there's never a partial row to represent.
  */
 @Entity({ name: 'administrations' })
 export class AdministrationEntity {

@@ -13,10 +13,12 @@ import { IsInt, IsNotEmpty, IsString, MaxLength } from 'class-validator';
  *
  * `status` is plain `@IsString()`, not `@IsIn([...])`: the only value this
  * endpoint ever accepts past validation is `'APPROVED'`
- * (PcboxService rejects anything else immediately, the first and
- * cheapest of the three checks — see its own comment), so encoding the
- * full ticket-hub-api status vocabulary here would just duplicate a rule
- * that already lives, and is enforced, one call away.
+ * (`PcboxService.assertApprovedStatus` rejects anything else immediately,
+ * before YAML parsing even runs — see its own comment).
+ *
+ * `department`/`approver`/`informer`/`ticketNumber` are recorded as
+ * submitted, ticket metadata kept for the `administrations` record itself —
+ * they are no longer checked against ticket-hub-api.
  */
 export class CreatePcboxDto {
   @IsInt()

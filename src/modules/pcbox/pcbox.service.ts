@@ -4,7 +4,6 @@ import { ResponseBody } from '../../common/dto/response-body.dto';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 import { PcboxMapper } from './pcbox.mapper';
 import { PcboxResponse } from './pcbox-response';
-import { TicketHubVerificationService } from '../ticket-hub-api/ticket-hub-verification.service';
 import { AnsibleService } from '../ansible/ansible.service';
 import { AnsibleValidator } from '../ansible/ansible.validator';
 
@@ -15,14 +14,11 @@ const NOT_APPROVED_MESSAGE = `Only administrations with status '${APPROVED_STATU
 export class PcboxService {
   constructor(
     private readonly administrationsRepository: AdministrationsRepository,
-    private readonly ticketHubVerificationService: TicketHubVerificationService,
     private readonly ansibleService: AnsibleService,
   ) {}
 
   async create(dto: CreatePcboxDto): Promise<ResponseBody<PcboxResponse>> {
     this.assertApprovedStatus(dto.status);
-
-    await this.ticketHubVerificationService.verify(dto);
 
     AnsibleValidator.assertValidYamlPlaybook(dto.fileContent);
 
