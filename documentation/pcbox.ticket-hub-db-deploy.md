@@ -231,9 +231,57 @@ Verificar:
 
 Debería listar `number` como `integer`, `not null`, con una constraint `UNIQUE`.
 
-## 8. Datos que quedan de este proceso
+## 8. Agregar la columna `tickets.response` (migración posterior)
+
+Igual que en el paso anterior, `tickets` ya está desplegada, así que esta
+columna nueva se aplica a mano con `ALTER TABLE` — pero más simple que
+`number`, porque `response` es `nullable`: no hace falta backfill ni
+`SET NOT NULL`. Conectado al contenedor y a `psql` igual que en el paso 7:
+
+```sql
+ALTER TABLE tickets ADD COLUMN response VARCHAR(600);
+```
+
+`response` guarda el resumen que devuelve `pcbox-api` (o una descripción
+de la falla) cuando `ApproveTicketService` la llama justo después de
+aprobar un ticket — nunca el stdout/stderr completo, ver
+`ticket-hub-api/.claude/CLAUDE.md`. Queda `NULL` para cualquier ticket
+que todavía no pasó por ese flujo (los ya creados antes de esta
+migración, y cualquiera en estado `CREATED`).
+
+Verificar:
+
+```sql
+\d tickets
+```
+
+Debería listar `response` como `character varying(600)`, sin `not null`.
+
+## 9. El secreto para que `ticket-hub-api` le hable a `pcbox-api` — `pcbox-api-notification-credentials`
+
+Mismo mecanismo que ya existió del lado de `pcbox-api` cuando llamaba a
+ticket-hub-api (ver git history de `pcbox.administrations-deploy.md` si
+hace falta el precedente) pero en la dirección contraria: ahora
+`ticket-hub-api` es quien llama, a `POST /pcbox`, con el secreto
+compartido que pcbox-api ya exige vía `AdminApiKeyGuard`
+(`x-admin-api-key`/`ADMIN_API_KEY`, ver `pcbox.administrations-deploy.md`,
+paso 2) — no una cuenta ni un login, ambos lados solo necesitan el mismo
+valor.
+
+```bash
+microk8s kubectl create secret generic pcbox-api-notification-credentials \
+  -n ticket-hub \
+  --from-literal=PCBOX_API_ADMIN_KEY=<mismo valor que ADMIN_API_KEY de pcbox-api>
+```
+
+Si `ADMIN_API_KEY` se rota más adelante del lado de `pcbox-api`, este
+Secret tiene que actualizarse al mismo valor en el mismo momento — no hay
+ningún mecanismo automático que los mantenga sincronizados.
+
+## 10. Datos que quedan de este proceso
 
 | Dato | Qué es | De qué paso salió | Para qué es |
 |---|---|---|---|
 | Secret `ticket-hub-db-credentials` (namespace `ticket-hub`) | `POSTGRES_USER` y `POSTGRES_PASSWORD` de la base `ticket-hub-db` | Paso 3 (creado por `kubectl create secret`, editable después desde el Dashboard) | Credenciales de conexión a la base; cualquier rotación se hace editando este Secret desde el Dashboard, no por SSH |
 | Host interno `ticket-hub-db.ticket-hub.svc.cluster.local:5432` | DNS interno del cluster que apunta al Service de la base | Paso 5 (`Service` `ticket-hub-db`) | Cadena de conexión que va a usar `pcbox-api` (u otro Pod del cluster) para hablarle a Postgres |
+| Secret `pcbox-api-notification-credentials` (namespace `ticket-hub`) | `PCBOX_API_ADMIN_KEY` — mismo valor que `ADMIN_API_KEY` de pcbox-api | Paso 9 | `PcboxApiConnector` (en `ticket-hub-api`) manda este valor como `x-admin-api-key` al llamar `POST /pcbox` |
