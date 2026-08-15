@@ -174,6 +174,14 @@ Mismo patrón exacto que `InternalApiKeyGuard` de ticket-hub-api: header
 fijo (`x-admin-api-key`), secreto compartido por env var (`ADMIN_API_KEY`),
 `UnauthorizedException` genérica en cualquier mismatch.
 
+Este endpoint hoy tiene dos callers distintos, ambos autenticados igual
+(el guard no distingue quién llama): un admin humano a mano, y
+`ticket-hub-api`'s `ApproveTicketService` automáticamente después de
+aprobar un ticket (ver ese repo, módulo `pcbox-api/` — mismo nombre que
+este repo, cosas distintas). `ticket-hub-api` usa un secreto propio
+(`PCBOX_API_ADMIN_KEY` de su lado) que debe coincidir con el
+`ADMIN_API_KEY` de acá — dos env vars con nombre distinto, mismo valor.
+
 ## Variables de entorno
 
 `src/common/config/env.validation.ts` es la única fuente de verdad para las
