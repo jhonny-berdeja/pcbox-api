@@ -29,13 +29,6 @@ proyecto puntual.
      `needs.<job>.outputs.<nombre>` — es el único caso que realmente
      necesita `id:`.
 
-4. **Decisión pendiente, a resolver cuando se adopte esta convención en
-   un repo**: si además de los nombres descriptivos se mantienen
-   comentarios explicando el *por qué* de una decisión no obvia (el
-   motivo de un gate, el scope de un token, etc.), o si el nombre
-   descriptivo alcanza y el comentario queda reservado solo para
-   decisiones que un nombre no puede transmitir.
-
 ## Extracción de lógica no trivial a scripts `.sh`
 
 Cualquier `run:` que tenga un loop, un `curl`, un condicional, o más de
