@@ -123,7 +123,6 @@ describe('AnsibleConnector', () => {
       stdout: '',
       stderr: 'UNREACHABLE',
     });
-    // Removed even though the run failed.
     expect(mockedRm).toHaveBeenCalledTimes(1);
   });
 });
