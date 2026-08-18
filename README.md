@@ -8,10 +8,10 @@ Para dejar el servidor listo, seguir los documentos de `documentation/` **en est
 
 1. [`documentation/pcbox.bootstrap.md`](./documentation/pcbox.bootstrap.md) — configuración inicial del servidor (Ubuntu Server, SSH, Tailscale, sudo sin contraseña).
 2. [`documentation/pcbox.microk8s-setup.md`](./documentation/pcbox.microk8s-setup.md) — instalación de microk8s, certificado del API server para Tailscale, kubeconfig, y el Dashboard.
-3. [`documentation/pcbox.ticket-hub-db-deploy.md`](./documentation/pcbox.ticket-hub-db-deploy.md) — deploy de la base de datos `ticket-hub-db` en microk8s.
+3. [`infra-hub/databases/ticket-hub-db.md`](../infra-hub/databases/ticket-hub-db.md) — deploy de la base de datos `ticket-hub-db` en microk8s.
 4. [`documentation/pcbox.grafana-deploy.md`](./documentation/pcbox.grafana-deploy.md) — deploy de Grafana en microk8s.
 5. [`documentation/pcbox.loki-deploy.md`](./documentation/pcbox.loki-deploy.md) — deploy de Loki/Promtail en microk8s.
-6. [`documentation/pcbox.pcbox-db-deploy.md`](./documentation/pcbox.pcbox-db-deploy.md) — deploy de la base de datos `pcbox-db` (tabla `administrations`) en microk8s, namespace `pcbox-api`.
+6. [`infra-hub/databases/pcbox-db.md`](../infra-hub/databases/pcbox-db.md) — deploy de la base de datos `pcbox-db` (tabla `administrations`) en microk8s, namespace `pcbox-api`.
 7. [`documentation/pcbox.administrations-deploy.md`](./documentation/pcbox.pcbox-deploy.md) — el Secret de la clave SSH que esta app usa para administrar `pcbox` de verdad, y el resto de env vars/Secrets propios de esta app.
 
 Después de eso, hay que clonar y deployar `ticket-hub` y `ticket-hub-api` — cada uno tiene su propia documentación, dentro de su propio repo, para hacerlo.

@@ -2,7 +2,7 @@
 
 Este documento cubre los dos Secrets que la app `pcbox-api` necesita en su
 propio namespace (`pcbox-api`) para que el endpoint `POST /pcbox`
-funcione, además de la base `pcbox-db` (`pcbox.pcbox-db-deploy.md`). Se
+funcione, además de la base `pcbox-db` (`infra-hub/databases/pcbox-db.md`). Se
 asume que la app ya tiene su Deployment/Service desplegados vía el pipeline
 de `infra-hub` (mismo mecanismo que `ticket-hub-api`, ver
 `ticket-hub-api/README.md`) y que corren en el namespace `pcbox-api`.
@@ -85,7 +85,7 @@ el Secret — no hace falta conservarlos fuera de Kubernetes.
 compartido — solo necesita `AUTH_API_URL` (env var plana, ver
 `infra-hub/apps/pcbox-api/deployment.yaml`), no un Secret nuevo acá.
 El caller (`ticket-hub-api`) tiene su propio Secret del lado de
-`ticket-hub` — ver `pcbox.ticket-hub-db-deploy.md` §9.
+`ticket-hub` — ver `infra-hub/databases/ticket-hub-db.md` §9.
 
 ## 3. Datos que quedan de este proceso
 

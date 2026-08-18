@@ -4,7 +4,7 @@ Instructivo para levantar Grafana como un Pod dentro del cluster de microk8s del
 
 ## 0. Punto de partida
 
-Todo este instructivo asume que ya se completó el bootstrap del servidor (`pcbox.bootstrap.md`, pasos 1 a 4, y `pcbox.microk8s-setup.md` entero): Tailscale instalado y configurado, clave SSH sin contraseña, y microk8s corriendo con el addon `hostpath-storage` habilitado (`pcbox.ticket-hub-db-deploy.md`, paso 1 — si todavía no está habilitado, correr `microk8s enable hostpath-storage` antes de seguir).
+Todo este instructivo asume que ya se completó el bootstrap del servidor (`pcbox.bootstrap.md`, pasos 1 a 4, y `pcbox.microk8s-setup.md` entero): Tailscale instalado y configurado, clave SSH sin contraseña, y microk8s corriendo con el addon `hostpath-storage` habilitado (`infra-hub/databases/ticket-hub-db.md`, paso 1 — si todavía no está habilitado, correr `microk8s enable hostpath-storage` antes de seguir).
 
 Conectarse al servidor por SSH sobre la IP de Tailscale (`SSH_HOST`, `100.x.x.x`):
 
@@ -103,7 +103,7 @@ spec:
       targetPort: 3000
 ```
 
-> **Nota sobre `securityContext.fsGroup: 472`:** el contenedor de Grafana corre como el usuario `grafana` (UID/GID `472`), no como `root`. Un volumen `hostPath`/`microk8s-hostpath` recién creado queda con dueño `root` por defecto — sin este `fsGroup`, Grafana no puede escribir en `/var/lib/grafana` y el Pod queda en `CrashLoopBackOff` con "permission denied" en los logs. `fsGroup` le dice a Kubernetes que ajuste el grupo dueño del volumen a `472` al montarlo, antes de que arranque el contenedor — mismo tipo de ajuste que el subdirectorio `PGDATA` resolvió para Postgres en `pcbox.ticket-hub-db-deploy.md` (paso 5), pero para el problema de permisos en vez del de "directorio no vacío".
+> **Nota sobre `securityContext.fsGroup: 472`:** el contenedor de Grafana corre como el usuario `grafana` (UID/GID `472`), no como `root`. Un volumen `hostPath`/`microk8s-hostpath` recién creado queda con dueño `root` por defecto — sin este `fsGroup`, Grafana no puede escribir en `/var/lib/grafana` y el Pod queda en `CrashLoopBackOff` con "permission denied" en los logs. `fsGroup` le dice a Kubernetes que ajuste el grupo dueño del volumen a `472` al montarlo, antes de que arranque el contenedor — mismo tipo de ajuste que el subdirectorio `PGDATA` resolvió para Postgres en `infra-hub/databases/ticket-hub-db.md` (paso 5), pero para el problema de permisos en vez del de "directorio no vacío".
 
 ```bash
 microk8s kubectl apply -f ~/grafana.yaml
