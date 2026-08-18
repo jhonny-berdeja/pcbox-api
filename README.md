@@ -1,154 +1,50 @@
 # pcbox-api
 
-Este proyecto es para todo lo que tiene que ver con la gestión del servidor `pcbox` — el servidor que usa todo el ecosistema `jtagram`.
+## ¿Para qué es este proyecto?
 
-## Cómo montar el ecosistema
+`pcbox-api` es el servicio del ecosistema `jtagram` encargado de ejecutar, de forma controlada y auditable, tareas administrativas sobre el servidor físico `pcbox`. Expone un único endpoint que recibe un playbook de Ansible junto con los datos de un ticket ya aprobado, deja registro de esa administración en base de datos y corre el playbook contra `pcbox` real por SSH, devolviendo el resultado de la ejecución.
 
-Para dejar el servidor listo, seguir estos documentos de `documentation/`, en este orden:
+## ¿Qué hace cada módulo?
 
-1. [`documentation/pcbox.bootstrap.md`](./documentation/pcbox.bootstrap.md) — configuración inicial del servidor (Ubuntu Server, SSH, Tailscale, sudo sin contraseña).
-2. [`documentation/pcbox.microk8s-setup.md`](./documentation/pcbox.microk8s-setup.md) — instalación de microk8s, certificado del API server para Tailscale, kubeconfig, y el Dashboard.
-3. [`documentation/pcbox.pcbox-deploy.md`](./documentation/pcbox.pcbox-deploy.md) — el Secret de la clave SSH que esta app usa para administrar `pcbox` de verdad, y el resto de env vars/Secrets propios de esta app.
+### `ansible`
 
-Entre el paso 2 y el 3 hay que desplegar las bases de datos (`ticket-hub-db`, `pcbox-db`) y la observabilidad (Grafana, Loki/Promtail) — esos instructivos no viven en este repo, están en `infra-hub` (`databases/`, `grafana/`, `loki/`).
+Se encarga de correr playbooks de Ansible contra el servidor `pcbox`. `AnsibleValidator` verifica que el `fileContent` recibido sea YAML válido antes de intentar ejecutarlo. `AnsibleConnector` vuelca ese contenido a un archivo temporal y lo ejecuta con el binario `ansible-playbook`, autenticándose por SSH con una clave privada montada en el Pod en un path fijo (`/etc/ssh-keys/pcbox_deploy_key`) y usando `PCBOX_SSH_HOST`/`PCBOX_SSH_USER` como destino y usuario. `AnsibleService` orquesta la validación y la ejecución, y además loguea el resultado completo (éxito, código de salida, stdout y stderr) para que quede trazado en la observabilidad del clúster.
 
-Después de eso, hay que clonar y deployar `ticket-hub` y `ticket-hub-api` — cada uno tiene su propia documentación, dentro de su propio repo, para hacerlo.
+### `auth`
 
-Con eso, el ecosistema ya queda montado. Lo único que va quedando pendiente de ahí en adelante es clonar y deployar los distintos proyectos de `jtagram` a medida que se necesiten — incluyendo este mismo repo, `pcbox-api`.
+Protege el endpoint de `pcbox` verificando quién llama. `JwksClientService` consulta periódicamente (cada 5 minutos) el JWKS publicado por `auth-api` y mantiene en memoria las claves públicas necesarias para validar tokens RS256. `JwtAuthGuard` toma el bearer token de cada request, identifica con qué clave (`kid`) fue firmado y valida su firma y vigencia contra esas claves cacheadas. `RolesGuard`, combinado con el decorador `@Roles`, exige que el usuario autenticado tenga el rol `ADMIN` para poder ejecutar la operación.
 
-## Qué hace esta app
+### `pcbox`
 
-Un único endpoint, `POST /pcbox`: recibe un playbook de Ansible (YAML) más metadata de un ticket, y si el `status` es `APPROVED` y el YAML parsea, guarda el registro en la tabla `administrations` y ejecuta el playbook contra el servidor `pcbox` real por SSH. La metadata del ticket (`ticketNumber`/`department`/`approver`/`informer`) se guarda tal cual se recibe — ya no se valida contra `ticket-hub-api`. Ver `.claude/CLAUDE.md` para la arquitectura completa.
+Es el módulo de negocio: expone `POST /pcbox`, protegido por `JwtAuthGuard` y `RolesGuard` (rol `ADMIN`). `CreatePcboxDto` valida la metadata del ticket (`ticketNumber`, `department`, `approver`, `informer`, `status`) y el `fileContent` del playbook. `PcboxService` rechaza cualquier solicitud cuyo `status` no sea `APPROVED`, valida que el `fileContent` sea YAML válido, guarda el registro de la administración en la tabla `administrations` y por último dispara la ejecución real del playbook a través del módulo `ansible`, devolviendo tanto los datos guardados como el resultado de la ejecución.
 
-## Environment variables
+## ¿Qué variables de entorno necesito?
 
-This app runs **only** as a Pod in the microk8s `pcbox-api` namespace. There is
-no local dev environment, no docker-compose Postgres, and no `.env` file —
-every value below arrives as a container env var injected by the Deployment
-manifest (`ConfigModule.forRoot({ ignoreEnvFile: true, validate })` fails fast
-at boot if any is missing).
+### Variables para el pipeline de GitHub Actions
 
-| Var | Required | Source (in-cluster) | Description |
-|---|---|---|---|
-| `POSTGRES_USER` | Yes | `envFrom: secretRef: pcbox-db-credentials` | Postgres role used to connect to `pcbox-db` |
-| `POSTGRES_PASSWORD` | Yes | `envFrom: secretRef: pcbox-db-credentials` | Password for `POSTGRES_USER` |
-| `DATABASE_HOST` | Yes | literal `env:` → `pcbox-db.pcbox-api.svc.cluster.local` | Postgres Service DNS name |
-| `DATABASE_PORT` | Yes | literal `env:` → `5432` | Postgres port |
-| `DATABASE_NAME` | Yes | literal `env:` → `pcbox-db` | Database name |
-| `PORT` | Yes | literal `env:` → `3000` | HTTP port the Nest app listens on |
-| `LOG_LEVEL` | Yes | literal `env:` → `info` | Minimum pino log level (`trace`/`debug`/`info`/`warn`/`error`/`fatal`) |
-| `AUTH_API_URL` | Yes | literal `env:` → `http://auth-api.auth-api.svc.cluster.local:3000` | Base URL of auth-api, polled every 5 min for its JWKS (`JwksClientService`) — the RS256 key every request's bearer token is verified against |
-| `PCBOX_SSH_HOST` | Yes | literal `env:` → same Tailscale IP as the `SSH_HOST` secret in `pcbox.bootstrap.md` | Host of the `pcbox` server the app SSHes into to run playbooks |
-| `PCBOX_SSH_USER` | Yes | literal `env:` → same value as `SSH_USER` in `pcbox.bootstrap.md` | SSH user the app authenticates as |
+El workflow `.github/workflows/release-pcbox-api.yml` necesita tres secretos de repositorio, documentados paso a paso en `.github/workflows/obtain-secrets.md`:
 
-The SSH **private key** itself is not an env var at all — it's mounted from a
-Kubernetes Secret as a file at the fixed path `/etc/ssh-keys/pcbox_deploy_key`
-(see `AnsibleService` and
-`documentation/pcbox.pcbox-deploy.md`). That key gives this app
-real administrative SSH access to `pcbox` — treat it accordingly, never as a
-routine config value.
+- **`DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN`**: se usan juntos para autenticarse en Docker Hub, tanto al publicar la imagen de `pcbox-api` como al borrar tags viejos al final del release. `DOCKERHUB_USERNAME` es el usuario u organización de Docker Hub donde se publica la imagen; `DOCKERHUB_TOKEN` es un Access Token generado desde Docker Hub (Account Settings > Security) con permisos de **Read, Write, Delete**, porque el job de limpieza necesita poder borrar tags.
+- **`INFRA_HUB_DISPATCH_TOKEN`**: token de acceso personal (fine-grained) de GitHub usado como `GH_TOKEN` para disparar el workflow de deploy en el repo `infra-hub` y luego consultar el estado de esa corrida. Se genera con acceso restringido al repositorio `infra-hub` y permisos `Actions: Read and write` + `Contents: Read-only`.
 
-## Manual verification (once deployed in-cluster)
+### Variables para el funcionamiento de la app
 
-Kubernetes Deployment/Service manifests for this app live in the separate
-`infra-hub` repo, the same pattern as `ticket-hub-api` — not in this repo.
-All automated tests here run against a mocked repository (in-memory SQLite
-for e2e) and mocked `execFile` (see
-`src/modules/pcbox/*.spec.ts` and
-`test/modules/pcbox/pcbox.e2e-spec.ts`), never a real
-Postgres or SSH connection — by design, this environment
-cannot run `ansible-playbook` against a real server. The checklist below is
-the only way to confirm the real playbook execution actually works, and it
-needs `pcbox.pcbox-deploy.md`'s Secret to already exist in-cluster.
+Definidas y validadas en `src/common/config/env.validation.ts`. La app corre solo como Pod en el namespace `pcbox-api` de microk8s: no hay `.env` local ni entorno de desarrollo con Postgres propio — todos estos valores llegan como variables de entorno inyectadas por el manifiesto de Deployment (repo `infra-hub`), y si falta alguna la app no arranca.
 
-### 1. Confirm the Pod is up
+- **`POSTGRES_USER` y `POSTGRES_PASSWORD`**: credenciales para conectarse a `pcbox-db`. Se obtienen del Secret que crea el proceso de base de datos documentado en `infra-hub/databases/pcbox-db.md` y llegan al Pod vía `envFrom: secretRef`.
+- **`DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`**: datos de conexión a `pcbox-db` (DNS del Service, puerto y nombre de la base). Son valores literales fijos del manifiesto de Deployment, no secretos.
+- **`PORT`**: puerto HTTP en el que escucha la app dentro del Pod. Valor literal fijo del manifiesto.
+- **`LOG_LEVEL`**: nivel mínimo de log de pino (`trace`/`debug`/`info`/`warn`/`error`/`fatal`). Valor literal fijo del manifiesto.
+- **`AUTH_API_URL`**: URL base in-cluster de `auth-api` (por ejemplo `http://auth-api.auth-api.svc.cluster.local:3000`), que `JwksClientService` usa para obtener el JWKS con el que se validan los tokens de cada request. Valor literal fijo del manifiesto, ver `documentation/pcbox.pcbox-deploy.md`.
+- **`PCBOX_SSH_HOST` y `PCBOX_SSH_USER`**: host y usuario SSH del servidor `pcbox` real contra el que se ejecutan los playbooks. Son el mismo host y usuario que los secretos `SSH_HOST`/`SSH_USER` documentados en `documentation/pcbox.bootstrap.md` para el acceso de CI, ahora también consumidos por esta app.
 
-```bash
-microk8s kubectl get pods -n pcbox-api
-microk8s kubectl logs -n pcbox-api deployment/pcbox-api
-```
+Además, la clave privada SSH que usa `AnsibleConnector` para autenticarse contra `pcbox` **no** es una variable de entorno: se monta como archivo desde el Secret `pcbox-ssh-key` en el path fijo `/etc/ssh-keys/pcbox_deploy_key`. El procedimiento completo para generarla y montarla está en `documentation/pcbox.pcbox-deploy.md`.
 
-Should show `Running`, with Nest's route map at boot (`Mapped
-{/pcbox, POST}`) and no `Missing required environment variable(s)`
-error.
+## ¿Cómo se ejecuta la app?
 
-### 2. Exercise `POST /pcbox`
+La app no se corre en local: vive desplegada como Pod en el microk8s del servidor `pcbox`. Para desplegar una nueva versión hay que ir al workflow de GitHub Actions `Release pcbox-api` (`.github/workflows/release-pcbox-api.yml`) y dispararlo manualmente (`workflow_dispatch`), completando dos inputs:
 
-No ticket lookup happens anymore — any `ticketNumber`/`department`/
-`approver`/`informer` combination is accepted and saved as-is, as long as
-`status` is `'APPROVED'` and `fileContent` parses as YAML.
+- **`previous_stable_tag`** (tag anterior estable): el tag que se mantiene como la última versión estable conocida. El workflow valida que ese tag ya exista como tag de git y como tag de imagen en Docker Hub, y al final del proceso lo conserva mientras borra el resto de los tags viejos.
+- **`new_tag`** (tag nuevo a liberar): la versión nueva que se va a construir, publicar y desplegar. El workflow valida que ese tag todavía no exista ni en git ni en Docker Hub.
 
-```bash
-microk8s kubectl port-forward -n pcbox-api svc/pcbox-api 3000:3000
-```
-
-This app verifies callers against auth-api's JWKS now (see
-`src/modules/auth/`) -- getting a real bearer token means logging in
-through auth-api first as the `pcbox-api` apps-user (`POST
-/apps-users/login`), not something this repo can do standalone:
-
-```bash
-curl -i -X POST http://localhost:3000/pcbox \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer <token from auth-api>' \
-  -d '{
-    "ticketNumber": 1,
-    "department": "Datacenter",
-    "approver": "Beto",
-    "informer": "ana@example.com",
-    "status": "APPROVED",
-    "fileContent": "- hosts: all\n  tasks:\n    - name: ping\n      ansible.builtin.ping:\n"
-  }'
-```
-
-Expected: `201 Created`, body includes `data.execution.success` and
-`data.execution.exitCode`. Confirm the full stdout/stderr landed in Loki:
-
-```
-{namespace="pcbox-api", container="pcbox-api"} | json | msg="Ansible playbook execution against pcbox"
-```
-
-Confirm the row landed in `administrations`:
-
-```bash
-microk8s kubectl exec -it -n pcbox-api deployment/pcbox-db -- \
-  psql -U "$POSTGRES_USER" -d pcbox-db -c "SELECT * FROM administrations;"
-```
-
-### 3. Confirm the failure paths
-
-- Missing/invalid/expired bearer token, or a token without ADMIN → `401`/`403`.
-- `status` other than `APPROVED` → `400`, nothing saved.
-- Unparseable `fileContent` → `400`, nothing saved.
-
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
+A partir de ahí, el pipeline hace todo el proceso: valida secretos y tags, construye y publica la imagen `pcbox-api:<new_tag>` en Docker Hub, crea el tag de git correspondiente y, usando `INFRA_HUB_DISPATCH_TOKEN`, dispara el workflow `deploy-pcbox-api.yml` del repo `infra-hub` — que es el que efectivamente aplica el nuevo manifiesto y despliega la imagen en el microk8s de `pcbox`. El job de release espera a que esa corrida en `infra-hub` termine antes de continuar. Por último, borra de Docker Hub todos los tags de `pcbox-api` excepto `previous_stable_tag` y `new_tag`, dejando el repositorio de imágenes limpio.
