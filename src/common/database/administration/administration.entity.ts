@@ -1,13 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-/**
- * Maps the `administrations` table (see
- * documentation/pcbox.pcbox-db-deploy.md for the init schema). Every
- * column is `NOT NULL` — unlike `TicketEntity.assignee` in ticket-hub-api,
- * nothing here is optional: an administration record is only ever written
- * after every field has already been validated (local status check, YAML
- * parseability), so there's never a partial row to represent.
- */
 @Entity({ name: 'administrations' })
 export class AdministrationEntity {
   @PrimaryGeneratedColumn()
@@ -19,24 +11,15 @@ export class AdministrationEntity {
   @Column({ length: 15 })
   department!: string;
 
-  // Widened from 15 to 100 -- approver is ticket-hub-api's free-text
-  // tickets.assignee now, not a VARCHAR(15) users.name. See
-  // CreatePcboxDto's doc comment for the full history.
   @Column({ length: 100 })
   approver!: string;
 
-  // Widened from 15 to 30 -- informer is the creator's email now
-  // (tickets.informer), not a VARCHAR(15) users.name.
   @Column({ length: 30 })
   informer!: string;
 
   @Column({ length: 15 })
   status!: string;
 
-  // The YAML playbook's raw text, not the temp file written to disk to run
-  // it — mirrors ticket-hub-api's TicketEntity.codeAnsible column, just
-  // NOT NULL here instead of nullable (an administration always carries a
-  // playbook, a ticket doesn't always carry one yet).
   @Column({ name: 'file_content', type: 'varchar', length: 500 })
   fileContent!: string;
 
@@ -45,7 +28,6 @@ export class AdministrationEntity {
   }
 }
 
-/** Fluent builder for `AdministrationEntity` — mirrors `TicketEntityBuilder`'s pattern, but every field is mandatory (no optional defaults). */
 export class AdministrationEntityBuilder {
   private ticketNumber?: number;
   private department?: string;
