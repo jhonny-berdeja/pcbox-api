@@ -12,16 +12,6 @@ import { JwksClientService } from '../jwks-client.service';
 const MISSING_TOKEN_MESSAGE = 'Missing or malformed bearer token';
 const INVALID_TOKEN_MESSAGE = 'Invalid or expired token';
 
-/**
- * Applied via `@UseGuards()` directly on `PcboxController` -- no
- * `@Public()` escape hatch, unlike ticket-hub-api's global version:
- * this app has exactly one route and it always needs a valid token, so
- * there's nothing to exempt. Verifies the `Authorization: Bearer
- * <token>` header against auth-api's RS256 public key, looked up by the
- * token's own `kid` header in `JwksClientService`'s cache. Replaces
- * `AdminApiKeyGuard`'s shared-secret check -- see its own (removed)
- * history.
- */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(private readonly jwksClientService: JwksClientService) {}
