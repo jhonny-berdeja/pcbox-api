@@ -19,18 +19,6 @@ interface JwksResponse {
   keys: Jwk[];
 }
 
-/**
- * Fetches auth-api's JWKS (`GET /.well-known/jwks.json`) on startup and
- * every 5 minutes after, caching each key by `kid` in memory --
- * `JwtAuthGuard` looks up the key matching a token's own `kid` header
- * here instead of trusting one hardcoded key, so a future key rotation
- * on auth-api's side is picked up within one refresh cycle, no restart
- * needed here. Mirrors ticket-hub-api's own `JwksClientService` exactly.
- *
- * A failed refresh (auth-api unreachable) leaves the previous cache
- * untouched rather than clearing it -- a transient outage shouldn't
- * lock the one guarded route out until the next successful poll.
- */
 @Injectable()
 export class JwksClientService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(JwksClientService.name);

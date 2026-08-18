@@ -14,12 +14,6 @@ const MISSING_USER_MESSAGE =
   'RolesGuard ran without an authenticated user - JwtAuthGuard must run first';
 const INSUFFICIENT_ROLE_MESSAGE = 'You do not have the required role';
 
-/**
- * Requires `JwtAuthGuard` to run first (reads `request.user`, which it
- * populates). Checks the caller's roles on the single application it
- * logged into (`request.user.apps.application.roles`, resolved by
- * auth-api from `X-Application-Name: pcbox-api` at login).
- */
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}

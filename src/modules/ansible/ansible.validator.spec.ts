@@ -15,10 +15,6 @@ describe('AnsibleValidator.assertValidYamlPlaybook', () => {
   });
 
   it("does not throw for YAML that is not a valid Ansible playbook shape — that is ansible-playbook's job, not this class's", () => {
-    // A string, not a list of plays — structurally valid YAML, semantically
-    // not a playbook. See the class's own comment for why this is
-    // intentional: re-implementing ansible-playbook's schema here would
-    // drift out of sync with it.
     expect(() =>
       AnsibleValidator.assertValidYamlPlaybook('just a plain string'),
     ).not.toThrow();
