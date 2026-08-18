@@ -77,22 +77,18 @@ privada que use directamente (rechaza claves con permisos más abiertos).
 Borrar `pcbox_app_key`/`pcbox_app_key.pub` del disco local una vez creado
 el Secret — no hace falta conservarlos fuera de Kubernetes.
 
-## 2. El secreto propio de este endpoint — `pcbox-api-admin-credentials`
+## 2. Ya no hay un secreto propio de este endpoint
 
-El valor que cualquier caller de `POST /pcbox` tiene que mandar
-en el header `x-admin-api-key` (ver `AdminApiKeyGuard`). A diferencia del
-Secret anterior, este es propio de `pcbox-api` — no necesita coincidir con
-nada de otro namespace.
-
-```bash
-microk8s kubectl create secret generic pcbox-api-admin-credentials \
-  -n pcbox-api \
-  --from-literal=ADMIN_API_KEY=clave_segura
-```
+`pcbox-api-admin-credentials`/`ADMIN_API_KEY` no existen más:
+`POST /pcbox` verifica al caller contra el JWKS de `auth-api`
+(`JwtAuthGuard`/`RolesGuard`, rol `ADMIN`) en vez de un secreto
+compartido — solo necesita `AUTH_API_URL` (env var plana, ver
+`infra-hub/apps/pcbox-api/deployment.yaml`), no un Secret nuevo acá.
+El caller (`ticket-hub-api`) tiene su propio Secret del lado de
+`ticket-hub` — ver `pcbox.ticket-hub-db-deploy.md` §9.
 
 ## 3. Datos que quedan de este proceso
 
 | Dato | Qué es | De qué paso salió | Para qué es |
 |---|---|---|---|
 | Secret `pcbox-ssh-key` (namespace `pcbox-api`, montado como archivo) | Clave privada SSH con acceso administrativo real a `pcbox` | Paso 1 | Autenticación de `AnsibleExecutionService` contra `pcbox` vía `ansible-playbook --private-key` |
-| Secret `pcbox-api-admin-credentials` (namespace `pcbox-api`) | `ADMIN_API_KEY` | Paso 2 | Header `x-admin-api-key` que `AdminApiKeyGuard` exige en `POST /pcbox` |

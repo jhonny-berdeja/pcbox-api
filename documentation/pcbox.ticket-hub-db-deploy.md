@@ -261,24 +261,37 @@ Debería listar `response` como `text`, sin `not null`.
 
 ## 9. El secreto para que `ticket-hub-api` le hable a `pcbox-api` — `pcbox-api-notification-credentials`
 
-Mismo mecanismo que ya existió del lado de `pcbox-api` cuando llamaba a
-ticket-hub-api (ver git history de `pcbox.administrations-deploy.md` si
-hace falta el precedente) pero en la dirección contraria: ahora
-`ticket-hub-api` es quien llama, a `POST /pcbox`, con el secreto
-compartido que pcbox-api ya exige vía `AdminApiKeyGuard`
-(`x-admin-api-key`/`ADMIN_API_KEY`, ver `pcbox.administrations-deploy.md`,
-paso 2) — no una cuenta ni un login, ambos lados solo necesitan el mismo
-valor.
+Ya no es un secreto compartido: `pcbox-api` verifica contra el JWKS de
+`auth-api` (`JwtAuthGuard`/`RolesGuard`, rol `ADMIN`), así que
+`ticket-hub-api` necesita loguearse en `auth-api` como un usuario de
+aplicación (`apps_users`) antes de cada llamada a `POST /pcbox`.
+
+Pasos previos, desde `iam`:
+
+1. **Crear aplicación** `pcbox-api` en `auth-api`.
+2. **Crear rol** `ADMIN` para esa aplicación.
+3. **Crear usuario de aplicación** (esto te da un `clienteId`/`clienteSecret`
+   — el `clienteSecret` solo se muestra una vez, guardalo ahí mismo).
+4. **Asignar aplicación** `pcbox-api` a ese usuario.
+5. **Asignar rol** `ADMIN` a ese usuario, para la app `pcbox-api`.
+
+Con el `clienteId`/`clienteSecret` en mano, creá el Secret en el
+namespace `ticket-hub` (no `pcbox-api` — es `ticket-hub-api` quien lo
+usa):
 
 ```bash
 microk8s kubectl create secret generic pcbox-api-notification-credentials \
   -n ticket-hub \
-  --from-literal=PCBOX_API_ADMIN_KEY=<mismo valor que ADMIN_API_KEY de pcbox-api>
+  --from-literal=PCBOX_API_CLIENT_ID='<clienteId>' \
+  --from-literal=PCBOX_API_CLIENT_SECRET='<clienteSecret>'
 ```
 
-Si `ADMIN_API_KEY` se rota más adelante del lado de `pcbox-api`, este
-Secret tiene que actualizarse al mismo valor en el mismo momento — no hay
-ningún mecanismo automático que los mantenga sincronizados.
+Si el `clienteSecret` se rota más adelante, hay que actualizar este
+Secret al mismo valor — no hay ningún mecanismo automático que los
+mantenga sincronizados. El nombre del Secret se mantuvo igual
+(`pcbox-api-notification-credentials`) aunque su contenido cambió por
+completo, para no tener que tocar el nombre en `deployment.yaml` además
+de las claves.
 
 ## 10. Datos que quedan de este proceso
 
@@ -286,7 +299,7 @@ ningún mecanismo automático que los mantenga sincronizados.
 |---|---|---|---|
 | Secret `ticket-hub-db-credentials` (namespace `ticket-hub`) | `POSTGRES_USER` y `POSTGRES_PASSWORD` de la base `ticket-hub-db` | Paso 3 (creado por `kubectl create secret`, editable después desde el Dashboard) | Credenciales de conexión a la base; cualquier rotación se hace editando este Secret desde el Dashboard, no por SSH |
 | Host interno `ticket-hub-db.ticket-hub.svc.cluster.local:5432` | DNS interno del cluster que apunta al Service de la base | Paso 5 (`Service` `ticket-hub-db`) | Cadena de conexión que va a usar `pcbox-api` (u otro Pod del cluster) para hablarle a Postgres |
-| Secret `pcbox-api-notification-credentials` (namespace `ticket-hub`) | `PCBOX_API_ADMIN_KEY` — mismo valor que `ADMIN_API_KEY` de pcbox-api | Paso 9 | `PcboxApiConnector` (en `ticket-hub-api`) manda este valor como `x-admin-api-key` al llamar `POST /pcbox` |
+| Secret `pcbox-api-notification-credentials` (namespace `ticket-hub`) | `PCBOX_API_CLIENT_ID`/`PCBOX_API_CLIENT_SECRET` — credenciales del `apps_user` de `pcbox-api` en `auth-api` | Paso 9 | `PcboxApiConnector` (en `ticket-hub-api`) se loguea con esto en `auth-api` antes de cada `POST /pcbox`, y manda el token resultante como `Authorization: Bearer` |
 
 ## 11. Migración: `ticket-hub-api` deja de tener usuarios/roles propios (migración posterior)
 

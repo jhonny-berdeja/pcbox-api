@@ -39,7 +39,7 @@ at boot if any is missing).
 | `DATABASE_NAME` | Yes | literal `env:` → `pcbox-db` | Database name |
 | `PORT` | Yes | literal `env:` → `3000` | HTTP port the Nest app listens on |
 | `LOG_LEVEL` | Yes | literal `env:` → `info` | Minimum pino log level (`trace`/`debug`/`info`/`warn`/`error`/`fatal`) |
-| `ADMIN_API_KEY` | Yes | `secretRef: pcbox-api-admin-credentials` | Shared secret this app itself requires via `x-admin-api-key` on `POST /pcbox` |
+| `AUTH_API_URL` | Yes | literal `env:` → `http://auth-api.auth-api.svc.cluster.local:3000` | Base URL of auth-api, polled every 5 min for its JWKS (`JwksClientService`) — the RS256 key every request's bearer token is verified against |
 | `PCBOX_SSH_HOST` | Yes | literal `env:` → same Tailscale IP as the `SSH_HOST` secret in `pcbox.bootstrap.md` | Host of the `pcbox` server the app SSHes into to run playbooks |
 | `PCBOX_SSH_USER` | Yes | literal `env:` → same value as `SSH_USER` in `pcbox.bootstrap.md` | SSH user the app authenticates as |
 
@@ -84,15 +84,20 @@ No ticket lookup happens anymore — any `ticketNumber`/`department`/
 microk8s kubectl port-forward -n pcbox-api svc/pcbox-api 3000:3000
 ```
 
+This app verifies callers against auth-api's JWKS now (see
+`src/modules/auth/`) -- getting a real bearer token means logging in
+through auth-api first as the `pcbox-api` apps-user (`POST
+/apps-users/login`), not something this repo can do standalone:
+
 ```bash
 curl -i -X POST http://localhost:3000/pcbox \
   -H 'Content-Type: application/json' \
-  -H 'x-admin-api-key: <ADMIN_API_KEY value>' \
+  -H 'Authorization: Bearer <token from auth-api>' \
   -d '{
     "ticketNumber": 1,
     "department": "Datacenter",
     "approver": "Beto",
-    "informer": "Ana",
+    "informer": "ana@example.com",
     "status": "APPROVED",
     "fileContent": "- hosts: all\n  tasks:\n    - name: ping\n      ansible.builtin.ping:\n"
   }'
@@ -114,7 +119,7 @@ microk8s kubectl exec -it -n pcbox-api deployment/pcbox-db -- \
 
 ### 3. Confirm the failure paths
 
-- Wrong/missing `x-admin-api-key` → `401`.
+- Missing/invalid/expired bearer token, or a token without ADMIN → `401`/`403`.
 - `status` other than `APPROVED` → `400`, nothing saved.
 - Unparseable `fileContent` → `400`, nothing saved.
 
