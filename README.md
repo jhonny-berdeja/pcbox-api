@@ -4,15 +4,13 @@ Este proyecto es para todo lo que tiene que ver con la gestión del servidor `pc
 
 ## Cómo montar el ecosistema
 
-Para dejar el servidor listo, seguir los documentos de `documentation/` **en este orden**:
+Para dejar el servidor listo, seguir estos documentos de `documentation/`, en este orden:
 
 1. [`documentation/pcbox.bootstrap.md`](./documentation/pcbox.bootstrap.md) — configuración inicial del servidor (Ubuntu Server, SSH, Tailscale, sudo sin contraseña).
 2. [`documentation/pcbox.microk8s-setup.md`](./documentation/pcbox.microk8s-setup.md) — instalación de microk8s, certificado del API server para Tailscale, kubeconfig, y el Dashboard.
-3. [`infra-hub/databases/ticket-hub-db.md`](../infra-hub/databases/ticket-hub-db.md) — deploy de la base de datos `ticket-hub-db` en microk8s.
-4. [`infra-hub/grafana/deploy.md`](../infra-hub/grafana/deploy.md) — deploy de Grafana en microk8s.
-5. [`infra-hub/loki/deploy.md`](../infra-hub/loki/deploy.md) — deploy de Loki/Promtail en microk8s.
-6. [`infra-hub/databases/pcbox-db.md`](../infra-hub/databases/pcbox-db.md) — deploy de la base de datos `pcbox-db` (tabla `administrations`) en microk8s, namespace `pcbox-api`.
-7. [`documentation/pcbox.administrations-deploy.md`](./documentation/pcbox.pcbox-deploy.md) — el Secret de la clave SSH que esta app usa para administrar `pcbox` de verdad, y el resto de env vars/Secrets propios de esta app.
+3. [`documentation/pcbox.pcbox-deploy.md`](./documentation/pcbox.pcbox-deploy.md) — el Secret de la clave SSH que esta app usa para administrar `pcbox` de verdad, y el resto de env vars/Secrets propios de esta app.
+
+Entre el paso 2 y el 3 hay que desplegar las bases de datos (`ticket-hub-db`, `pcbox-db`) y la observabilidad (Grafana, Loki/Promtail) — esos instructivos no viven en este repo, están en `infra-hub` (`databases/`, `grafana/`, `loki/`).
 
 Después de eso, hay que clonar y deployar `ticket-hub` y `ticket-hub-api` — cada uno tiene su propia documentación, dentro de su propio repo, para hacerlo.
 
@@ -46,7 +44,7 @@ at boot if any is missing).
 The SSH **private key** itself is not an env var at all — it's mounted from a
 Kubernetes Secret as a file at the fixed path `/etc/ssh-keys/pcbox_deploy_key`
 (see `AnsibleService` and
-`documentation/pcbox.administrations-deploy.md`). That key gives this app
+`documentation/pcbox.pcbox-deploy.md`). That key gives this app
 real administrative SSH access to `pcbox` — treat it accordingly, never as a
 routine config value.
 
@@ -61,7 +59,7 @@ for e2e) and mocked `execFile` (see
 Postgres or SSH connection — by design, this environment
 cannot run `ansible-playbook` against a real server. The checklist below is
 the only way to confirm the real playbook execution actually works, and it
-needs `pcbox.administrations-deploy.md`'s Secret to already exist in-cluster.
+needs `pcbox.pcbox-deploy.md`'s Secret to already exist in-cluster.
 
 ### 1. Confirm the Pod is up
 
