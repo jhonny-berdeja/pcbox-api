@@ -21,8 +21,8 @@ permissions:
   contents: read
 
 jobs:
-  validate-tags:
-    name: Validate the previous stable and new tags before anything else runs.
+  validate:
+    name: Validate secrets and tags before anything else runs.
     runs-on: ubuntu-latest
     steps:
       - name: Clone the repository to access the code, scripts, and tags.
@@ -30,6 +30,21 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Assert the DOCKERHUB_TOKEN secret is set.
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: .github/scripts/assert-secret-is-set.sh DOCKERHUB_TOKEN "$DOCKERHUB_TOKEN"
+
+      - name: Assert the DOCKERHUB_USERNAME secret is set.
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: .github/scripts/assert-secret-is-set.sh DOCKERHUB_USERNAME "$DOCKERHUB_USERNAME"
+
+      - name: Assert the INFRA_HUB_DISPATCH_TOKEN secret is set.
+        env:
+          INFRA_HUB_DISPATCH_TOKEN: ${{ secrets.INFRA_HUB_DISPATCH_TOKEN }}
+        run: .github/scripts/assert-secret-is-set.sh INFRA_HUB_DISPATCH_TOKEN "$INFRA_HUB_DISPATCH_TOKEN"
 
       - name: Save the previous stable tag input to GITHUB_ENV.
         env:
@@ -84,7 +99,7 @@ jobs:
 
   build-and-push:
     name: Build and push the pcbox-api image, and create the git tag.
-    needs: validate-tags
+    needs: validate
     runs-on: ubuntu-latest
     permissions:
       contents: write
