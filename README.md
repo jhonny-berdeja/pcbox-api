@@ -48,3 +48,11 @@ La app no se corre en local: vive desplegada como Pod en el microk8s del servido
 - **`new_tag`** (tag nuevo a liberar): la versión nueva que se va a construir, publicar y desplegar. El workflow valida que ese tag todavía no exista ni en git ni en Docker Hub.
 
 A partir de ahí, el pipeline hace todo el proceso: valida secretos y tags, construye y publica la imagen `pcbox-api:<new_tag>` en Docker Hub, crea el tag de git correspondiente y, usando `INFRA_HUB_DISPATCH_TOKEN`, dispara el workflow `deploy-pcbox-api.yml` del repo `infra-hub` — que es el que efectivamente aplica el nuevo manifiesto y despliega la imagen en el microk8s de `pcbox`. El job de release espera a que esa corrida en `infra-hub` termine antes de continuar. Por último, borra de Docker Hub todos los tags de `pcbox-api` excepto `previous_stable_tag` y `new_tag`, dejando el repositorio de imágenes limpio.
+
+## ¿Cómo configuro un servidor nuevo desde cero?
+
+Todo lo anterior asume un servidor `pcbox` ya preparado. Para dejar un servidor nuevo listo desde cero hay que resolver, en este orden, los tres instructivos de [`documentation/`](documentation):
+
+1. [`pcbox.bootstrap.md`](documentation/pcbox.bootstrap.md) — configuración inicial del servidor a mano (Ubuntu Server, OpenSSH, Tailscale, clave SSH sin contraseña, sudo sin contraseña).
+2. [`pcbox.microk8s-setup.md`](documentation/pcbox.microk8s-setup.md) — instalación de microk8s, extensión del certificado del API server para Tailscale, generación del kubeconfig remoto y habilitación del Dashboard.
+3. [`pcbox.pcbox-deploy.md`](documentation/pcbox.pcbox-deploy.md) — Secrets propios de `pcbox-api` que necesita la app para el endpoint `POST /pcbox`.
