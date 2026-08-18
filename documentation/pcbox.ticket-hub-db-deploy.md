@@ -287,3 +287,67 @@ ningún mecanismo automático que los mantenga sincronizados.
 | Secret `ticket-hub-db-credentials` (namespace `ticket-hub`) | `POSTGRES_USER` y `POSTGRES_PASSWORD` de la base `ticket-hub-db` | Paso 3 (creado por `kubectl create secret`, editable después desde el Dashboard) | Credenciales de conexión a la base; cualquier rotación se hace editando este Secret desde el Dashboard, no por SSH |
 | Host interno `ticket-hub-db.ticket-hub.svc.cluster.local:5432` | DNS interno del cluster que apunta al Service de la base | Paso 5 (`Service` `ticket-hub-db`) | Cadena de conexión que va a usar `pcbox-api` (u otro Pod del cluster) para hablarle a Postgres |
 | Secret `pcbox-api-notification-credentials` (namespace `ticket-hub`) | `PCBOX_API_ADMIN_KEY` — mismo valor que `ADMIN_API_KEY` de pcbox-api | Paso 9 | `PcboxApiConnector` (en `ticket-hub-api`) manda este valor como `x-admin-api-key` al llamar `POST /pcbox` |
+
+## 11. Migración: `ticket-hub-api` deja de tener usuarios/roles propios (migración posterior)
+
+`ticket-hub` ahora se loguea contra `auth-api` (JWT verificado vía JWKS,
+ver `ticket-hub-api/src/modules/auth/jwt-auth.guard.ts`), y solo el rol
+`ADMIN` se sigue usando ahí — no `DEV`/`APPROVER`. Como consecuencia:
+
+- `tickets.assignee` deja de ser un `id` de `users` y pasa a ser texto
+  libre, tipeado a mano por quien crea el ticket.
+- `tickets.creator` sigue siendo un entero, pero ahora es el `sub` del
+  token de `auth-api` (un id de `internal_users`, no de la `users` local
+  de esta base) — la foreign key hacia `users` queda inválida y hay que
+  sacarla.
+- Se agrega `tickets.informer`: el email de quien creó el ticket,
+  capturado del token al momento de crear (ya no se puede resolver
+  `creator` a un nombre después, porque `users` desaparece).
+- Las tablas `users` y `roles` ya no tienen ningún consumidor y se
+  eliminan.
+
+Conectado al contenedor y a `psql` igual que en los pasos 7/8 — primero
+verificá los nombres reales de las constraints (pueden no ser los que
+Postgres asigna por default si algo los nombró distinto):
+
+```sql
+\d tickets
+\d roles
+```
+
+Con los nombres confirmados (`tickets_creator_fkey`/`tickets_assignee_fkey`
+son los que Postgres asigna por default si no los ves distintos arriba):
+
+```sql
+ALTER TABLE tickets DROP CONSTRAINT tickets_creator_fkey;
+ALTER TABLE tickets DROP CONSTRAINT tickets_assignee_fkey;
+
+ALTER TABLE tickets ALTER COLUMN assignee TYPE VARCHAR(100) USING assignee::VARCHAR(100);
+
+ALTER TABLE tickets ADD COLUMN informer VARCHAR(30);
+```
+
+`informer` queda sin `NOT NULL` a propósito — mismo criterio
+"obligatorio para la app, no para la base" que ya se usó en `assignee`/
+`codeAnsible`: cualquier ticket creado antes de esta migración se queda
+con `informer` en `NULL`, y no hace falta backfill porque nada lo lee
+retroactivamente.
+
+Por último, las tablas que ya nadie consulta:
+
+```sql
+DROP TABLE roles;
+DROP TABLE users;
+```
+
+(`roles` tiene su propia FK hacia `users`, por eso se borra primero.)
+
+Verificar:
+
+```sql
+\d tickets
+```
+
+Debería listar `assignee` como `character varying(100)` sin FK, e
+`informer` como `character varying(30)` sin `not null`. `\dt` ya no debería
+listar `users` ni `roles`.
