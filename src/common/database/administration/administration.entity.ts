@@ -19,10 +19,15 @@ export class AdministrationEntity {
   @Column({ length: 15 })
   department!: string;
 
-  @Column({ length: 15 })
+  // Widened from 15 to 100 -- approver is ticket-hub-api's free-text
+  // tickets.assignee now, not a VARCHAR(15) users.name. See
+  // CreatePcboxDto's doc comment for the full history.
+  @Column({ length: 100 })
   approver!: string;
 
-  @Column({ length: 15 })
+  // Widened from 15 to 30 -- informer is the creator's email now
+  // (tickets.informer), not a VARCHAR(15) users.name.
+  @Column({ length: 30 })
   informer!: string;
 
   @Column({ length: 15 })

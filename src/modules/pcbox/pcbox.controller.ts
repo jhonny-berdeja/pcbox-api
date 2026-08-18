@@ -10,18 +10,22 @@ import { ResponseBody } from '../../common/dto/response-body.dto';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 import { PcboxService } from './pcbox.service';
 import { PcboxResponse } from './pcbox-response';
-import { AdminApiKeyGuard } from './guards/admin-api-key.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/guards/roles.decorator';
+import { Role } from '../auth/role.enum';
 
 /**
- * Every route here needs the shared-secret guard — there's no user JWT in
- * this app to fall back to, and no other role that should ever reach this
- * endpoint, so `AdminApiKeyGuard` goes at the class level instead of
- * repeated per-route (unlike ticket-hub-api's `InternalApiKeyGuard`, which
- * is deliberately route-level because most of TicketsController's routes
- * use JWT instead).
+ * Every route here needs both guards and ADMIN — there's no other role
+ * that should ever reach this endpoint, so they go at the class level
+ * instead of repeated per-route. Caller is ticket-hub-api's own
+ * apps-user, authenticated against auth-api (`X-Application-Name:
+ * pcbox-api`) — replaces the old shared-secret `AdminApiKeyGuard` (see
+ * its removed history).
  */
 @Controller('pcbox')
-@UseGuards(AdminApiKeyGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN)
 export class PcboxController {
   constructor(private readonly pcboxService: PcboxService) {}
 

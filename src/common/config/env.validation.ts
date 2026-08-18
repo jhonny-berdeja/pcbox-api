@@ -49,10 +49,16 @@ export class EnvironmentVariables {
   @IsIn(PINO_LOG_LEVELS)
   LOG_LEVEL!: string;
 
-  /** Shared secret this app itself requires via `x-admin-api-key` on POST /pcbox — see AdminApiKeyGuard. */
+  /**
+   * In-cluster base URL of auth-api, e.g.
+   * `http://auth-api.auth-api.svc.cluster.local:3000` -- `JwksClientService`
+   * polls `${AUTH_API_URL}/.well-known/jwks.json` every 5 minutes to
+   * refresh the RS256 key `JwtAuthGuard` verifies every request against.
+   * Replaces `ADMIN_API_KEY` (see JwtAuthGuard's history).
+   */
   @IsString()
   @IsNotEmpty()
-  ADMIN_API_KEY!: string;
+  AUTH_API_URL!: string;
 
   /** Host of the real `pcbox` server the app SSHes into to run administration playbooks — same server/value as the human-facing `SSH_HOST` secret documented in pcbox.bootstrap.md, now also consumed by this app. */
   @IsString()

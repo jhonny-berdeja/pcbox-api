@@ -204,3 +204,33 @@ Todas las columnas deberían mostrar `not null`.
 |---|---|---|---|
 | Secret `pcbox-db-credentials` (namespace `pcbox-api`) | `POSTGRES_USER` y `POSTGRES_PASSWORD` de la base `pcbox-db` | Paso 2 (creado por `kubectl create secret`, editable después desde el Dashboard) | Credenciales de conexión a la base — mismos valores que `POSTGRES_USER`/`POSTGRES_PASSWORD` en el `.env.example`/README de `pcbox-api` |
 | Host interno `pcbox-db.pcbox-api.svc.cluster.local:5432` | DNS interno del cluster que apunta al Service de la base | Paso 4 (`Service` `pcbox-db`) | Cadena de conexión que usa la propia app `pcbox-api` (`DATABASE_HOST`) |
+
+## 7. Ensanchar `approver`/`informer` (migración posterior)
+
+`approver`/`informer` dejaron de venir de `users.name` (VARCHAR(15) en la
+`ticket-hub-db` vieja) — ahora `approver` es el texto libre de
+`tickets.assignee` (VARCHAR(100)) e `informer` es el email del creador
+(`tickets.informer`, VARCHAR(30)). Con `VARCHAR(15)` acá, casi cualquier
+aprobación real fallaba la validación de `CreatePcboxDto` con 400.
+
+Conectado al contenedor y a `psql`, igual que en pasos anteriores de otros
+despliegues de este mismo repo:
+
+```bash
+microk8s kubectl exec -it -n pcbox-api deployment/pcbox-db -- \
+  psql -U usuario_db -d pcbox-db
+```
+
+```sql
+ALTER TABLE administrations ALTER COLUMN approver TYPE VARCHAR(100);
+ALTER TABLE administrations ALTER COLUMN informer TYPE VARCHAR(30);
+```
+
+Verificar:
+
+```sql
+\d administrations
+```
+
+`approver` debería listar `character varying(100)`, `informer`
+`character varying(30)`, ambos `not null`.

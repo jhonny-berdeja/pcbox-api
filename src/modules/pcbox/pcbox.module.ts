@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { PcboxController } from './pcbox.controller';
 import { PcboxService } from './pcbox.service';
 import { AnsibleModule } from '../ansible/ansible.module';
-import { AdminApiKeyGuard } from './guards/admin-api-key.guard';
+import { AuthModule } from '../auth/auth.module';
 
 /**
  * `AdministrationsRepository` comes from the `@Global()` `DatabaseModule`,
@@ -16,19 +16,19 @@ import { AdminApiKeyGuard } from './guards/admin-api-key.guard';
  * `pcbox`'s own HTTP contract. One-directional dependency (`pcbox` →
  * `ansible`, never the reverse) — see its own module comment.
  *
+ * `AuthModule` provides `JwtAuthGuard`/`RolesGuard`, applied via
+ * `@UseGuards()` on `PcboxController` — imported (not just the guards
+ * declared here directly) so their own dependency (`JwksClientService`)
+ * resolves correctly across the module boundary, same reasoning as
+ * ticket-hub-api's own `AuthModule` export comment.
+ *
  * There is no verification against ticket-hub-api anymore — `pcbox` used
  * to import a `ticket-hub-api/` module for that (see git history if you
  * need it), removed once that check stopped being a requirement.
- *
- * `AdminApiKeyGuard` is listed as a provider even though it's applied via
- * `@UseGuards()` at the controller level, not `APP_GUARD`: Nest's DI still
- * needs it registered somewhere to resolve its own `ConfigService`
- * dependency when instantiating it, same reason ticket-hub-api's
- * `TicketsModule` lists `InternalApiKeyGuard`.
  */
 @Module({
-  imports: [AnsibleModule],
+  imports: [AnsibleModule, AuthModule],
   controllers: [PcboxController],
-  providers: [PcboxService, AdminApiKeyGuard],
+  providers: [PcboxService],
 })
 export class PcboxModule {}

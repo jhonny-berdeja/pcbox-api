@@ -8,41 +8,43 @@ import { Repository } from 'typeorm';
 import { PcboxModule } from '../../../src/modules/pcbox/pcbox.module';
 import { AnsibleService } from '../../../src/modules/ansible/ansible.service';
 import { AdministrationEntity } from '../../../src/common/database/administration/administration.entity';
+import { JwksClientService } from '../../../src/modules/auth/jwks-client.service';
 import { InMemoryDatabaseModule } from '../../common/in-memory-database.module';
+import { JwksClientServiceStub } from '../../common/jwks-client-service.stub';
+import { signAdminToken } from '../../common/sign-admin-token';
 
 /**
- * Real end-to-end: real `PcboxModule` (controller, service, guard, mapper)
- * against a real — if in-memory — database. Only one external boundary is
- * mocked, because it cannot run in this environment at all:
- * `AnsibleService` (would otherwise SSH into the real `pcbox` server and
- * run a playbook — see the service's own comment and README's "Manual
- * verification" section for why this can only be confirmed by hand, once
- * deployed). There's no ticket-hub-api call to mock anymore — that
- * verification step was removed.
+ * Real end-to-end: real `PcboxModule` (controller, service, guards,
+ * mapper) against a real — if in-memory — database. `AnsibleService` is
+ * mocked (would otherwise SSH into the real `pcbox` server and run a
+ * playbook — see the service's own comment). `JwksClientService` is
+ * overridden with a stub that hands back a fixed test key synchronously
+ * instead of polling auth-api over the network -- there's no real
+ * auth-api at `AUTH_API_URL` to poll here, and `signAdminToken` signs
+ * test tokens against that same test key.
  */
 describe('Pcbox flow (e2e, in-memory DB)', () => {
   let app: INestApplication<App>;
   let moduleFixture: TestingModule;
   let repository: Repository<AdministrationEntity>;
   let executeMock: jest.Mock;
-
-  const ADMIN_API_KEY = 'test-admin-api-key';
+  let adminToken: string;
 
   const validBody = () => ({
     ticketNumber: 1,
     department: 'Datacenter',
     approver: 'Beto',
-    informer: 'Ana',
+    informer: 'ana@example.com',
     status: 'APPROVED',
     fileContent: '- hosts: all\n  tasks: []\n',
   });
 
   beforeAll(async () => {
-    process.env.ADMIN_API_KEY = ADMIN_API_KEY;
     process.env.PCBOX_SSH_HOST = '100.64.0.1';
     process.env.PCBOX_SSH_USER = 'jhon';
 
     executeMock = jest.fn();
+    adminToken = signAdminToken();
 
     moduleFixture = await Test.createTestingModule({
       imports: [
@@ -53,6 +55,8 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
     })
       .overrideProvider(AnsibleService)
       .useValue({ execute: executeMock })
+      .overrideProvider(JwksClientService)
+      .useClass(JwksClientServiceStub)
       .compile();
 
     app = moduleFixture.createNestApplication<INestApplication<App>>();
@@ -76,7 +80,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
     await app.close();
   });
 
-  it('401s without the x-admin-api-key header', async () => {
+  it('401s without a bearer token', async () => {
     await request(app.getHttpServer())
       .post('/pcbox')
       .send(validBody())
@@ -85,10 +89,10 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
     expect(executeMock).not.toHaveBeenCalled();
   });
 
-  it('401s with the wrong key', async () => {
+  it('401s with a malformed token', async () => {
     await request(app.getHttpServer())
       .post('/pcbox')
-      .set('x-admin-api-key', 'not-the-real-key')
+      .set('Authorization', 'Bearer not-a-real-token')
       .send(validBody())
       .expect(401);
 
@@ -98,7 +102,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
   it('rejects a non-APPROVED status, before parsing YAML or saving anything', async () => {
     await request(app.getHttpServer())
       .post('/pcbox')
-      .set('x-admin-api-key', ADMIN_API_KEY)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ ...validBody(), status: 'CREATED' })
       .expect(400);
 
@@ -109,7 +113,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
   it('400s on unparseable YAML, before saving anything', async () => {
     await request(app.getHttpServer())
       .post('/pcbox')
-      .set('x-admin-api-key', ADMIN_API_KEY)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ ...validBody(), fileContent: 'key: [unclosed' })
       .expect(400);
 
@@ -127,7 +131,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
 
     const response = await request(app.getHttpServer())
       .post('/pcbox')
-      .set('x-admin-api-key', ADMIN_API_KEY)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send(validBody())
       .expect(201);
 
@@ -138,7 +142,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
         ticketNumber: 1,
         department: 'Datacenter',
         approver: 'Beto',
-        informer: 'Ana',
+        informer: 'ana@example.com',
         status: 'APPROVED',
         fileContent: validBody().fileContent,
         execution: {
@@ -164,7 +168,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
 
     const response = await request(app.getHttpServer())
       .post('/pcbox')
-      .set('x-admin-api-key', ADMIN_API_KEY)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send(validBody())
       .expect(201);
 

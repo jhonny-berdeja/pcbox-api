@@ -8,8 +8,15 @@ import { IsInt, IsNotEmpty, IsString, MaxLength } from 'class-validator';
  * property names 1:1.
  *
  * Field limits mirror the `administrations` table column widths exactly
- * (`department`/`approver`/`informer`/`status` VARCHAR(15), `file_content`
- * VARCHAR(500)) — see documentation/pcbox.pcbox-db-deploy.md.
+ * (`department`/`status` VARCHAR(15), `approver` VARCHAR(100), `informer`
+ * VARCHAR(30), `file_content` VARCHAR(500)) — see
+ * documentation/pcbox.pcbox-db-deploy.md §5. `approver`/`informer` used
+ * to match `department` at VARCHAR(15) too, back when both were sourced
+ * from ticket-hub-api's own `users.name` (also VARCHAR(15)). Once that
+ * table was retired, `approver` became ticket-hub-api's free-text
+ * `tickets.assignee` (VARCHAR(100)) and `informer` became the creator's
+ * email (`tickets.informer`, VARCHAR(30)) -- both widened here to match,
+ * or nearly every real approval would fail this validation.
  *
  * `status` is plain `@IsString()`, not `@IsIn([...])`: the only value this
  * endpoint ever accepts past validation is `'APPROVED'`
@@ -31,12 +38,12 @@ export class CreatePcboxDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(15)
+  @MaxLength(100)
   approver!: string;
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(15)
+  @MaxLength(30)
   informer!: string;
 
   @IsString()
