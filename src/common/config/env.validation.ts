@@ -7,7 +7,6 @@ import {
   validateSync,
 } from 'class-validator';
 
-/** Valid pino log levels, in ascending severity order. */
 const PINO_LOG_LEVELS = [
   'trace',
   'debug',
@@ -17,12 +16,6 @@ const PINO_LOG_LEVELS = [
   'fatal',
 ] as const;
 
-/**
- * Every container env var the app needs, all mandatory. `DATABASE_PORT`/
- * `PORT` are validated as numeric strings since they're `parseInt`'d /
- * passed to `app.listen()` downstream — a non-numeric value should fail
- * here, not there.
- */
 export class EnvironmentVariables {
   @IsString()
   @IsNotEmpty()
@@ -71,14 +64,6 @@ export class EnvironmentVariables {
   PCBOX_SSH_USER!: string;
 }
 
-/**
- * Fail-fast environment validation.
- *
- * The app runs cluster-only: every value below arrives as a container env
- * var injected by the Deployment/Secret, never a `.env` file. Throwing here
- * stops the process at boot instead of silently falling back to defaults
- * like `localhost`.
- */
 export function validate(
   config: Record<string, unknown>,
 ): EnvironmentVariables {
