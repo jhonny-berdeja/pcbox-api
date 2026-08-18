@@ -4,13 +4,6 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AdministrationEntity } from './administration/administration.entity';
 import { AdministrationsRepository } from './administration/administrations.repository';
 
-/**
- * `EnvModule` is not imported here: it's `@Global()` too, so once it loads
- * in `AppModule`, `ConfigService` is already injectable everywhere —
- * `inject: [ConfigService]` below works without a local import, same reason
- * `PcboxModule` doesn't import this module to get
- * `AdministrationsRepository`.
- */
 @Global()
 @Module({
   imports: [
