@@ -9,11 +9,11 @@ import {
 import { ResponseBody } from '../../common/dto/response-body.dto';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 import { PcboxService } from './pcbox.service';
-import { PcboxResponse } from './pcbox-response';
+import { PcboxResponse } from './dto/pcbox-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/guards/roles.decorator';
-import { Role } from '../auth/role.enum';
+import { Role } from '../auth/value-objects/role.enum';
 
 @Controller('pcbox')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -23,7 +23,7 @@ export class PcboxController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreatePcboxDto): Promise<ResponseBody<PcboxResponse>> {
-    return this.pcboxService.create(dto);
+  executeAdministrationPlaybook(@Body() dto: CreatePcboxDto): Promise<ResponseBody<PcboxResponse>> {
+    return this.pcboxService.executeAdministrationPlaybook(dto);
   }
 }

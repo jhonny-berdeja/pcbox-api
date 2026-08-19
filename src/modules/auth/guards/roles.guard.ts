@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { Role } from '../role.enum';
-import { AuthenticatedUser } from '../authenticated-user';
+import { Role } from '../value-objects/role.enum';
+import { AuthenticatedUser } from '../value-objects/authenticated-user';
 import { ROLES_KEY } from './roles.decorator';
 
 const MISSING_USER_MESSAGE =
@@ -28,9 +28,7 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context
-      .switchToHttp()
-      .getRequest<Request & { user?: AuthenticatedUser }>();
+    const request = context.switchToHttp().getRequest<Request>();
 
     if (!request.user) {
       throw new ForbiddenException(MISSING_USER_MESSAGE);

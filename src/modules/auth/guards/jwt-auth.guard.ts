@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import * as jwt from 'jsonwebtoken';
-import { AuthenticatedUser } from '../authenticated-user';
+import { AuthenticatedUser } from '../value-objects/authenticated-user';
 import { JwksClientService } from '../jwks-client.service';
 
 const MISSING_TOKEN_MESSAGE = 'Missing or malformed bearer token';
@@ -28,7 +28,7 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException(INVALID_TOKEN_MESSAGE);
     }
 
-    (request as Request & { user: AuthenticatedUser }).user = payload;
+    request.user = payload;
     return true;
   }
 

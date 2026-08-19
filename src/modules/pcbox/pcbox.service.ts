@@ -3,7 +3,7 @@ import { AdministrationsRepository } from '../../common/database/administration/
 import { ResponseBody } from '../../common/dto/response-body.dto';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 import { PcboxMapper } from './pcbox.mapper';
-import { PcboxResponse } from './pcbox-response';
+import { PcboxResponse } from './dto/pcbox-response.dto';
 import { AnsibleService } from '../ansible/ansible.service';
 import { AnsibleValidator } from '../ansible/ansible.validator';
 
@@ -17,7 +17,7 @@ export class PcboxService {
     private readonly ansibleService: AnsibleService,
   ) {}
 
-  async create(dto: CreatePcboxDto): Promise<ResponseBody<PcboxResponse>> {
+  async executeAdministrationPlaybook(dto: CreatePcboxDto): Promise<ResponseBody<PcboxResponse>> {
     this.assertApprovedStatus(dto.status);
 
     AnsibleValidator.assertValidYamlPlaybook(dto.fileContent);

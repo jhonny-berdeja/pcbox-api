@@ -1,6 +1,6 @@
 import { AdministrationEntity } from '../../common/database/administration/administration.entity';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
-import { PcboxResponse } from './pcbox-response';
+import { PcboxResponse } from './dto/pcbox-response.dto';
 import { AnsibleExecutionResult } from '../ansible/ansible.dto';
 
 export class PcboxMapper {
