@@ -4,14 +4,17 @@ import { PcboxResponse } from './dto/pcbox-response.dto';
 import { AnsibleExecutionResult } from '../ansible/ansible.dto';
 
 export class PcboxMapper {
-  static toEntity(dto: CreatePcboxDto): AdministrationEntity {
+  static toEntity(
+    dto: CreatePcboxDto,
+    fileContent: string,
+  ): AdministrationEntity {
     return AdministrationEntity.builder()
       .withTicketNumber(dto.ticketNumber)
       .withDepartment(dto.department)
       .withApprover(dto.approver)
       .withInformer(dto.informer)
       .withStatus(dto.status)
-      .withFileContent(dto.fileContent)
+      .withFileContent(fileContent)
       .build();
   }
 

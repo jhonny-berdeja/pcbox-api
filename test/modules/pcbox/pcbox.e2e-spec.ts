@@ -190,4 +190,80 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
     });
     await expect(repository.find()).resolves.toHaveLength(1);
   });
+
+  it('GET /pcbox/db-targets returns the allowlist, ADMIN-only', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/pcbox/db-targets')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      msg: 'Allowlisted database targets retrieved successfully',
+      data: [
+        {
+          namespace: 'ticket-hub',
+          deployment: 'ticket-hub-db',
+          dbName: 'ticket-hub-db',
+        },
+        { namespace: 'pcbox-api', deployment: 'pcbox-db', dbName: 'pcbox-db' },
+        { namespace: 'auth-api', deployment: 'auth-db', dbName: 'auth-db' },
+      ],
+    });
+
+    await request(app.getHttpServer()).get('/pcbox/db-targets').expect(401);
+  });
+
+  describe('DATABASE ticketType', () => {
+    const databaseBody = () => ({
+      ticketNumber: 2,
+      department: 'Datacenter',
+      approver: 'Beto',
+      informer: 'ana@example.com',
+      status: 'APPROVED',
+      ticketType: 'DATABASE',
+      database: {
+        namespace: 'pcbox-api',
+        deployment: 'pcbox-db',
+        dbName: 'pcbox-db',
+        operationType: 'LECTURA',
+        sqlCode: 'SELECT 1;',
+      },
+    });
+
+    it('rejects a non-allowlisted target with 400, before saving or executing anything', async () => {
+      await request(app.getHttpServer())
+        .post('/pcbox')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          ...databaseBody(),
+          database: { ...databaseBody().database, dbName: 'not-allowed-db' },
+        })
+        .expect(400);
+
+      expect(executeMock).not.toHaveBeenCalled();
+      await expect(repository.find()).resolves.toHaveLength(0);
+    });
+
+    it('happy path: templates the SQL playbook, persists it, and runs it with sqlCode delivered verbatim', async () => {
+      executeMock.mockResolvedValue({
+        success: true,
+        exitCode: 0,
+        stdout: '1\n(1 row)',
+        stderr: '',
+      });
+
+      const response = await request(app.getHttpServer())
+        .post('/pcbox')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(databaseBody())
+        .expect(201);
+
+      const body = response.body as { data: { fileContent: string } };
+      expect(body.data.fileContent).toContain('stdin: SELECT 1;');
+      expect(body.data.fileContent).not.toContain('argv:\n        - SELECT');
+
+      await expect(repository.find()).resolves.toHaveLength(1);
+      expect(executeMock).toHaveBeenCalledWith(body.data.fileContent);
+    });
+  });
 });

@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 import { AnsibleExecutionResult } from '../ansible/ansible.dto';
 import { PcboxMapper } from './pcbox.mapper';
@@ -16,7 +17,8 @@ function buildDto(): CreatePcboxDto {
 describe('PcboxMapper', () => {
   describe('toEntity', () => {
     it('copies every DTO field as-is, deriving nothing', () => {
-      const entity = PcboxMapper.toEntity(buildDto());
+      const dto = buildDto();
+      const entity = PcboxMapper.toEntity(dto, dto.fileContent!);
 
       expect(entity).toMatchObject({
         ticketNumber: 1,
@@ -31,9 +33,13 @@ describe('PcboxMapper', () => {
 
   describe('toResponse', () => {
     it('includes the full execution result, stdout/stderr included', () => {
-      const entity = Object.assign(PcboxMapper.toEntity(buildDto()), {
-        id: 7,
-      });
+      const dto = buildDto();
+      const entity = Object.assign(
+        PcboxMapper.toEntity(dto, dto.fileContent!),
+        {
+          id: 7,
+        },
+      );
       const execution: AnsibleExecutionResult = {
         success: true,
         exitCode: 0,
@@ -61,9 +67,13 @@ describe('PcboxMapper', () => {
     });
 
     it('carries a failed run through the same shape, exitCode and stderr included', () => {
-      const entity = Object.assign(PcboxMapper.toEntity(buildDto()), {
-        id: 8,
-      });
+      const dto = buildDto();
+      const entity = Object.assign(
+        PcboxMapper.toEntity(dto, dto.fileContent!),
+        {
+          id: 8,
+        },
+      );
       const execution: AnsibleExecutionResult = {
         success: false,
         exitCode: 2,
