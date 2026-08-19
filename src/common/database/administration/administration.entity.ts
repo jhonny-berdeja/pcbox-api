@@ -20,7 +20,7 @@ export class AdministrationEntity {
   @Column({ length: 15 })
   status!: string;
 
-  @Column({ name: 'file_content', type: 'varchar', length: 500 })
+  @Column({ name: 'file_content', type: 'text' })
   fileContent!: string;
 
   static builder(): AdministrationEntityBuilder {
