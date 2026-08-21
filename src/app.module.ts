@@ -7,9 +7,16 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { UnknownExceptionFilter } from './common/filters/unknown-exception.filter';
 import { LoggerModule } from './instrument/logger/logger.module';
 import { PcboxModule } from './modules/pcbox/pcbox.module';
+import { DatabaseAdministrationModule } from './modules/database/database.module';
 
 @Module({
-  imports: [EnvModule, LoggerModule, DatabaseModule, PcboxModule],
+  imports: [
+    EnvModule,
+    LoggerModule,
+    DatabaseModule,
+    PcboxModule,
+    DatabaseAdministrationModule,
+  ],
   providers: [
     { provide: APP_FILTER, useClass: UnknownExceptionFilter },
     { provide: APP_FILTER, useClass: DatabaseExceptionFilter },
