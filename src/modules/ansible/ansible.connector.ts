@@ -10,7 +10,8 @@ import { AnsibleMapper } from './ansible.mapper';
 
 @Injectable()
 export class AnsibleConnector {
-  private static readonly PLAYBOOK_TIMEOUT_MS = 120_000;
+  /** 4 minutes — both ANSIBLE and DATABASE tickets share this one execution path. */
+  private static readonly PLAYBOOK_TIMEOUT_MS = 240_000;
   private static readonly PLAYBOOK_FILE_NAME = 'playbook.yml';
   private static readonly SSH_PRIVATE_KEY_PATH =
     '/etc/ssh-keys/pcbox_deploy_key';
