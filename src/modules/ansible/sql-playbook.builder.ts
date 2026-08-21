@@ -1,5 +1,5 @@
 import { dump } from 'js-yaml';
-import { DbTarget } from '../pcbox/value-objects/db-target.allowlist';
+import { DbTarget } from '../database/value-objects/db-target.allowlist';
 
 const STATEMENT_TIMEOUT_MS = 90000;
 

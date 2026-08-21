@@ -1,6 +1,6 @@
 import { load } from 'js-yaml';
 import { SqlPlaybookBuilder } from './sql-playbook.builder';
-import { DbTarget } from '../pcbox/value-objects/db-target.allowlist';
+import { DbTarget } from '../database/value-objects/db-target.allowlist';
 
 const TARGET: DbTarget = {
   namespace: 'databases',

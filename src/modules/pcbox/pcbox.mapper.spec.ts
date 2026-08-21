@@ -18,7 +18,7 @@ describe('PcboxMapper', () => {
   describe('toEntity', () => {
     it('copies every DTO field as-is, deriving nothing', () => {
       const dto = buildDto();
-      const entity = PcboxMapper.toEntity(dto, dto.fileContent!);
+      const entity = PcboxMapper.toEntity(dto, dto.fileContent);
 
       expect(entity).toMatchObject({
         ticketNumber: 1,
@@ -34,12 +34,9 @@ describe('PcboxMapper', () => {
   describe('toResponse', () => {
     it('includes the full execution result, stdout/stderr included', () => {
       const dto = buildDto();
-      const entity = Object.assign(
-        PcboxMapper.toEntity(dto, dto.fileContent!),
-        {
-          id: 7,
-        },
-      );
+      const entity = Object.assign(PcboxMapper.toEntity(dto, dto.fileContent), {
+        id: 7,
+      });
       const execution: AnsibleExecutionResult = {
         success: true,
         exitCode: 0,
@@ -68,12 +65,9 @@ describe('PcboxMapper', () => {
 
     it('carries a failed run through the same shape, exitCode and stderr included', () => {
       const dto = buildDto();
-      const entity = Object.assign(
-        PcboxMapper.toEntity(dto, dto.fileContent!),
-        {
-          id: 8,
-        },
-      );
+      const entity = Object.assign(PcboxMapper.toEntity(dto, dto.fileContent), {
+        id: 8,
+      });
       const execution: AnsibleExecutionResult = {
         success: false,
         exitCode: 2,

@@ -5,14 +5,10 @@ import { PcboxService } from './pcbox.service';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 
 /**
- * Approval test (strict-tdd.md "Approval Testing" section): captures the
- * CURRENT ANSIBLE behavior of PcboxService before it's refactored (task
- * 3.4) to branch by `ticketType`. Must pass now (baseline) and must still
- * pass, unmodified in assertions, once the DATABASE branch is added — that
- * is the whole point of task 2.4 ("ANSIBLE ticket path behavior unchanged
- * when ticketType=ANSIBLE").
+ * `PcboxService` is now Ansible-only — the DATABASE ticket path lives in
+ * its own `DatabaseService` (`src/modules/database/`).
  */
-describe('PcboxService — ANSIBLE path stays unchanged after ticketType branching', () => {
+describe('PcboxService — Ansible administration execution', () => {
   it('persists fileContent as-is and runs it through AnsibleService', async () => {
     const fileContent = '- hosts: all\n  tasks: []';
     const dto: CreatePcboxDto = {

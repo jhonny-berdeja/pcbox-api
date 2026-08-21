@@ -1,15 +1,4 @@
-export interface PcboxResponse {
-  id: number;
-  ticketNumber: number;
-  department: string;
-  approver: string;
-  informer: string;
-  status: string;
-  fileContent: string;
-  execution: {
-    success: boolean;
-    exitCode: number | null;
-    stdout: string;
-    stderr: string;
-  };
-}
+import { AdministrationResponse } from '../../../common/database/administration/administration.mapper';
+
+/** HTTP response shape for `POST /pcbox` — identical to the shared `AdministrationResponse` (also used verbatim by `database`'s `DatabaseResponse`); kept as its own named type per this module's `dto/` convention. */
+export type PcboxResponse = AdministrationResponse;
