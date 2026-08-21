@@ -225,7 +225,6 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
         namespace: 'pcbox-api',
         deployment: 'pcbox-db',
         dbName: 'pcbox-db',
-        operationType: 'LECTURA',
         sqlCode: 'SELECT 1;',
       },
     });

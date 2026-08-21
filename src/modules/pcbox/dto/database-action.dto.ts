@@ -1,7 +1,4 @@
-import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { OperationType } from '../value-objects/operation-type.enum';
-
-const OPERATION_TYPES = Object.values(OperationType);
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 export class DatabaseActionDto {
   @IsString()
@@ -18,9 +15,6 @@ export class DatabaseActionDto {
   @IsNotEmpty()
   @MaxLength(63)
   dbName!: string;
-
-  @IsIn(OPERATION_TYPES)
-  operationType!: OperationType;
 
   @IsString()
   @IsNotEmpty()
