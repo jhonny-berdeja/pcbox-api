@@ -5,12 +5,14 @@
  * only convenience; this const is the actual gate (see
  * `DbTargetValidator.assertAllowed`).
  *
- * v1 entries mirror the deployments documented in
- * `infra-hub/databases/*.md`: `ticket-hub-db` (namespace `ticket-hub`),
- * `pcbox-db` (namespace `pcbox-api`, shared with the app's own
- * namespace), `auth-db` (namespace `auth-api`, same sharing pattern).
- * Adding a target here is a deliberate, reviewed deploy — not a
- * runtime-editable list.
+ * All three entries share the same `namespace`/`deployment` now: a single
+ * consolidated Postgres Pod (`postgres`, namespace `databases`) hosts the
+ * three logical databases `iam`/`pcbox`/`ticket-hub` as of the cutover
+ * documented in `infra-hub/databases/jtagram.db.md` — it replaced the
+ * three separate per-app Pods (`ticket-hub-db`/`pcbox-db`/`auth-db`, each
+ * in its own app's namespace) this allowlist pointed to before. Adding a
+ * target here is a deliberate, reviewed deploy — not a runtime-editable
+ * list.
  */
 export interface DbTarget {
   namespace: string;
@@ -19,13 +21,9 @@ export interface DbTarget {
 }
 
 export const DB_TARGETS: readonly DbTarget[] = [
-  {
-    namespace: 'ticket-hub',
-    deployment: 'ticket-hub-db',
-    dbName: 'ticket-hub-db',
-  },
-  { namespace: 'pcbox-api', deployment: 'pcbox-db', dbName: 'pcbox-db' },
-  { namespace: 'auth-api', deployment: 'auth-db', dbName: 'auth-db' },
+  { namespace: 'databases', deployment: 'postgres', dbName: 'ticket-hub' },
+  { namespace: 'databases', deployment: 'postgres', dbName: 'pcbox' },
+  { namespace: 'databases', deployment: 'postgres', dbName: 'iam' },
 ];
 
 /** Looks up an allowlisted target by exact triple match. Returns `undefined` if no entry matches. */

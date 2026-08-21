@@ -200,13 +200,9 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
     expect(response.body).toEqual({
       msg: 'Allowlisted database targets retrieved successfully',
       data: [
-        {
-          namespace: 'ticket-hub',
-          deployment: 'ticket-hub-db',
-          dbName: 'ticket-hub-db',
-        },
-        { namespace: 'pcbox-api', deployment: 'pcbox-db', dbName: 'pcbox-db' },
-        { namespace: 'auth-api', deployment: 'auth-db', dbName: 'auth-db' },
+        { namespace: 'databases', deployment: 'postgres', dbName: 'ticket-hub' },
+        { namespace: 'databases', deployment: 'postgres', dbName: 'pcbox' },
+        { namespace: 'databases', deployment: 'postgres', dbName: 'iam' },
       ],
     });
 
@@ -222,9 +218,9 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
       status: 'APPROVED',
       ticketType: 'DATABASE',
       database: {
-        namespace: 'pcbox-api',
-        deployment: 'pcbox-db',
-        dbName: 'pcbox-db',
+        namespace: 'databases',
+        deployment: 'postgres',
+        dbName: 'pcbox',
         sqlCode: 'SELECT 1;',
       },
     });

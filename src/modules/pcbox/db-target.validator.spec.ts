@@ -3,14 +3,14 @@ import { DbTargetValidator } from './db-target.validator';
 
 describe('DbTargetValidator', () => {
   it.each([
-    ['unlisted namespace', 'unknown-ns', 'ticket-hub-db', 'ticket-hub-db'],
-    ['unlisted deployment', 'ticket-hub', 'unknown-deploy', 'ticket-hub-db'],
-    ['unlisted dbName', 'ticket-hub', 'ticket-hub-db', 'unknown-db'],
+    ['unlisted namespace', 'unknown-ns', 'postgres', 'ticket-hub'],
+    ['unlisted deployment', 'databases', 'unknown-deploy', 'ticket-hub'],
+    ['unlisted dbName', 'databases', 'postgres', 'unknown-db'],
     [
-      'triple recombined across two real entries (partial match)',
-      'ticket-hub',
-      'auth-db',
-      'auth-db',
+      'stale pre-consolidation dbName (real target renamed away from this)',
+      'databases',
+      'postgres',
+      'ticket-hub-db',
     ],
   ])(
     'rejects an off-allowlist target (%s) with a BadRequestException',
@@ -23,7 +23,7 @@ describe('DbTargetValidator', () => {
 
   it('accepts an exact allowlisted triple without throwing', () => {
     expect(() =>
-      DbTargetValidator.assertAllowed('pcbox-api', 'pcbox-db', 'pcbox-db'),
+      DbTargetValidator.assertAllowed('databases', 'postgres', 'pcbox'),
     ).not.toThrow();
   });
 });

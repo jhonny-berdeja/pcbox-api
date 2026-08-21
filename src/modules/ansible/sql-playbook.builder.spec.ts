@@ -3,9 +3,9 @@ import { SqlPlaybookBuilder } from './sql-playbook.builder';
 import { DbTarget } from '../pcbox/value-objects/db-target.allowlist';
 
 const TARGET: DbTarget = {
-  namespace: 'ticket-hub',
-  deployment: 'ticket-hub-db',
-  dbName: 'ticket-hub-db',
+  namespace: 'databases',
+  deployment: 'postgres',
+  dbName: 'ticket-hub',
 };
 
 const METACHARACTER_CORPUS: string[] = [
