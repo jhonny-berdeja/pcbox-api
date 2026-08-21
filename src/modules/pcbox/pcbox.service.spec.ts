@@ -1,5 +1,5 @@
-import { AdministrationsRepository } from '../../common/database/administration/administrations.repository';
-import { AdministrationEntity } from '../../common/database/administration/administration.entity';
+import { DatacenterRegisterRepository } from '../../common/database/administration/datacenter-register.repository';
+import { DatacenterRegisterEntity } from '../../common/database/administration/datacenter-register.entity';
 import { AnsibleService } from '../ansible/ansible.service';
 import { PcboxService } from './pcbox.service';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
@@ -20,7 +20,7 @@ describe('PcboxService — Ansible administration execution', () => {
       fileContent,
     };
 
-    const savedEntity = AdministrationEntity.builder()
+    const savedEntity = DatacenterRegisterEntity.builder()
       .withTicketNumber(dto.ticketNumber)
       .withDepartment(dto.department)
       .withApprover(dto.approver)
@@ -39,7 +39,7 @@ describe('PcboxService — Ansible administration execution', () => {
 
     const repository = {
       createAdministration,
-    } as unknown as AdministrationsRepository;
+    } as unknown as DatacenterRegisterRepository;
     const ansibleService = { execute } as unknown as AnsibleService;
 
     const service = new PcboxService(repository, ansibleService);

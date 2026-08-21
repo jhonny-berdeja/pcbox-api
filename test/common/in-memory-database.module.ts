@@ -1,7 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AdministrationEntity } from '../../src/common/database/administration/administration.entity';
-import { AdministrationsRepository } from '../../src/common/database/administration/administrations.repository';
+import { DatacenterRegisterEntity } from '../../src/common/database/administration/datacenter-register.entity';
+import { DatabaseRegisterEntity } from '../../src/common/database/administration/database-register.entity';
+import { DatacenterRegisterRepository } from '../../src/common/database/administration/datacenter-register.repository';
+import { DatabaseRegisterRepository } from '../../src/common/database/administration/database-register.repository';
 
 /**
  * Real, unmocked `TypeOrmModule` backed by a throwaway in-memory SQLite DB —
@@ -16,12 +18,16 @@ import { AdministrationsRepository } from '../../src/common/database/administrat
     TypeOrmModule.forRoot({
       type: 'better-sqlite3',
       database: ':memory:',
-      entities: [AdministrationEntity],
+      entities: [DatacenterRegisterEntity, DatabaseRegisterEntity],
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([AdministrationEntity]),
+    TypeOrmModule.forFeature([DatacenterRegisterEntity, DatabaseRegisterEntity]),
   ],
-  providers: [AdministrationsRepository],
-  exports: [AdministrationsRepository, TypeOrmModule],
+  providers: [DatacenterRegisterRepository, DatabaseRegisterRepository],
+  exports: [
+    DatacenterRegisterRepository,
+    DatabaseRegisterRepository,
+    TypeOrmModule,
+  ],
 })
 export class InMemoryDatabaseModule {}

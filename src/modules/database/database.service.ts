@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { AdministrationsRepository } from '../../common/database/administration/administrations.repository';
+import { DatabaseRegisterRepository } from '../../common/database/administration/database-register.repository';
 import { ResponseBody } from '../../common/dto/response-body.dto';
 import { CreateDatabaseAdministrationDto } from './dto/create-database-administration.dto';
 import { DatabaseMapper } from './database.mapper';
@@ -14,7 +14,7 @@ const NOT_APPROVED_MESSAGE = `Only administrations with status '${APPROVED_STATU
 @Injectable()
 export class DatabaseService {
   constructor(
-    private readonly administrationsRepository: AdministrationsRepository,
+    private readonly databaseRegisterRepository: DatabaseRegisterRepository,
     private readonly ansibleService: AnsibleService,
   ) {}
 
@@ -35,7 +35,7 @@ export class DatabaseService {
 
     const entity = DatabaseMapper.toEntity(dto, fileContent);
     const savedAdministration =
-      await this.administrationsRepository.createAdministration(entity);
+      await this.databaseRegisterRepository.createAdministration(entity);
 
     const execution = await this.ansibleService.execute(fileContent);
 

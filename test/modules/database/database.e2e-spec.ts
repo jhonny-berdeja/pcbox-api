@@ -7,7 +7,7 @@ import { App } from 'supertest/types';
 import { Repository } from 'typeorm';
 import { DatabaseAdministrationModule } from '../../../src/modules/database/database.module';
 import { AnsibleService } from '../../../src/modules/ansible/ansible.service';
-import { AdministrationEntity } from '../../../src/common/database/administration/administration.entity';
+import { DatabaseRegisterEntity } from '../../../src/common/database/administration/database-register.entity';
 import { JwksClientService } from '../../../src/modules/auth/jwks-client.service';
 import { InMemoryDatabaseModule } from '../../common/in-memory-database.module';
 import { JwksClientServiceStub } from '../../common/jwks-client-service.stub';
@@ -24,7 +24,7 @@ import { signAdminToken } from '../../common/sign-admin-token';
 describe('Database administration flow (e2e, in-memory DB)', () => {
   let app: INestApplication<App>;
   let moduleFixture: TestingModule;
-  let repository: Repository<AdministrationEntity>;
+  let repository: Repository<DatabaseRegisterEntity>;
   let executeMock: jest.Mock;
   let adminToken: string;
 
@@ -66,7 +66,9 @@ describe('Database administration flow (e2e, in-memory DB)', () => {
     );
     await app.init();
 
-    repository = moduleFixture.get(getRepositoryToken(AdministrationEntity));
+    repository = moduleFixture.get(
+      getRepositoryToken(DatabaseRegisterEntity),
+    );
   });
 
   beforeEach(() => {
@@ -144,8 +146,10 @@ describe('Database administration flow (e2e, in-memory DB)', () => {
         department: 'Datacenter',
         approver: 'Beto',
         informer: 'ana@example.com',
+        database: 'pcbox',
         status: 'APPROVED',
-        fileContent: expect.any(String) as string,
+        sqlContent: expect.any(String) as string,
+        response: null,
         execution: {
           success: true,
           exitCode: 0,
@@ -155,12 +159,12 @@ describe('Database administration flow (e2e, in-memory DB)', () => {
       },
     });
 
-    const body = response.body as { data: { fileContent: string } };
-    expect(body.data.fileContent).toContain('stdin: SELECT 1;');
-    expect(body.data.fileContent).not.toContain('argv:\n        - SELECT');
+    const body = response.body as { data: { sqlContent: string } };
+    expect(body.data.sqlContent).toContain('stdin: SELECT 1;');
+    expect(body.data.sqlContent).not.toContain('argv:\n        - SELECT');
 
     await expect(repository.find()).resolves.toHaveLength(1);
-    expect(executeMock).toHaveBeenCalledWith(body.data.fileContent);
+    expect(executeMock).toHaveBeenCalledWith(body.data.sqlContent);
   });
 
   it('surfaces a failed playbook run as a 201 with success:false, not an HTTP error — the record is still saved', async () => {

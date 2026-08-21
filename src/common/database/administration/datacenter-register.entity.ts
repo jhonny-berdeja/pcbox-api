@@ -1,7 +1,13 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
-@Entity({ name: 'administrations' })
-export class AdministrationEntity {
+/**
+ * ANSIBLE-flavored administration/execution record, split out of the old
+ * shared `administrations` table (see `pcbox-db.md` for the migration).
+ * Written by `pcbox`'s `PcboxService.executeAdministrationPlaybook` for a
+ * hand-authored playbook delivered as-is in `fileContent`.
+ */
+@Entity({ name: 'datacenter_register' })
+export class DatacenterRegisterEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
@@ -23,18 +29,23 @@ export class AdministrationEntity {
   @Column({ name: 'file_content', type: 'text' })
   fileContent!: string;
 
-  static builder(): AdministrationEntityBuilder {
-    return new AdministrationEntityBuilder();
+  /** Only filled in after execution — `null` at insert time. */
+  @Column({ type: 'text', nullable: true })
+  response!: string | null;
+
+  static builder(): DatacenterRegisterEntityBuilder {
+    return new DatacenterRegisterEntityBuilder();
   }
 }
 
-export class AdministrationEntityBuilder {
+export class DatacenterRegisterEntityBuilder {
   private ticketNumber?: number;
   private department?: string;
   private approver?: string;
   private informer?: string;
   private status?: string;
   private fileContent?: string;
+  private response: string | null = null;
 
   withTicketNumber(ticketNumber: number): this {
     this.ticketNumber = ticketNumber;
@@ -66,33 +77,49 @@ export class AdministrationEntityBuilder {
     return this;
   }
 
-  build(): AdministrationEntity {
+  withResponse(response: string | null): this {
+    this.response = response;
+    return this;
+  }
+
+  build(): DatacenterRegisterEntity {
     if (this.ticketNumber === undefined) {
-      throw new Error('AdministrationEntity.Builder: ticketNumber is required');
+      throw new Error(
+        'DatacenterRegisterEntity.Builder: ticketNumber is required',
+      );
     }
     if (this.department === undefined) {
-      throw new Error('AdministrationEntity.Builder: department is required');
+      throw new Error(
+        'DatacenterRegisterEntity.Builder: department is required',
+      );
     }
     if (this.approver === undefined) {
-      throw new Error('AdministrationEntity.Builder: approver is required');
+      throw new Error(
+        'DatacenterRegisterEntity.Builder: approver is required',
+      );
     }
     if (this.informer === undefined) {
-      throw new Error('AdministrationEntity.Builder: informer is required');
+      throw new Error(
+        'DatacenterRegisterEntity.Builder: informer is required',
+      );
     }
     if (this.status === undefined) {
-      throw new Error('AdministrationEntity.Builder: status is required');
+      throw new Error('DatacenterRegisterEntity.Builder: status is required');
     }
     if (this.fileContent === undefined) {
-      throw new Error('AdministrationEntity.Builder: fileContent is required');
+      throw new Error(
+        'DatacenterRegisterEntity.Builder: fileContent is required',
+      );
     }
 
-    const entity = new AdministrationEntity();
+    const entity = new DatacenterRegisterEntity();
     entity.ticketNumber = this.ticketNumber;
     entity.department = this.department;
     entity.approver = this.approver;
     entity.informer = this.informer;
     entity.status = this.status;
     entity.fileContent = this.fileContent;
+    entity.response = this.response;
     return entity;
   }
 }

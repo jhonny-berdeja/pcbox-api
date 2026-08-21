@@ -1,8 +1,10 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AdministrationEntity } from './administration/administration.entity';
-import { AdministrationsRepository } from './administration/administrations.repository';
+import { DatacenterRegisterEntity } from './administration/datacenter-register.entity';
+import { DatabaseRegisterEntity } from './administration/database-register.entity';
+import { DatacenterRegisterRepository } from './administration/datacenter-register.repository';
+import { DatabaseRegisterRepository } from './administration/database-register.repository';
 
 @Global()
 @Module({
@@ -19,13 +21,17 @@ import { AdministrationsRepository } from './administration/administrations.repo
         username: configService.get<string>('POSTGRES_USER'),
         password: configService.get<string>('POSTGRES_PASSWORD'),
         database: configService.get<string>('DATABASE_NAME'),
-        entities: [AdministrationEntity],
+        entities: [DatacenterRegisterEntity, DatabaseRegisterEntity],
         synchronize: false,
       }),
     }),
-    TypeOrmModule.forFeature([AdministrationEntity]),
+    TypeOrmModule.forFeature([DatacenterRegisterEntity, DatabaseRegisterEntity]),
   ],
-  providers: [AdministrationsRepository],
-  exports: [AdministrationsRepository, TypeOrmModule],
+  providers: [DatacenterRegisterRepository, DatabaseRegisterRepository],
+  exports: [
+    DatacenterRegisterRepository,
+    DatabaseRegisterRepository,
+    TypeOrmModule,
+  ],
 })
 export class DatabaseModule {}

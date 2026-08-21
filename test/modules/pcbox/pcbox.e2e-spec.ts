@@ -7,7 +7,7 @@ import { App } from 'supertest/types';
 import { Repository } from 'typeorm';
 import { PcboxModule } from '../../../src/modules/pcbox/pcbox.module';
 import { AnsibleService } from '../../../src/modules/ansible/ansible.service';
-import { AdministrationEntity } from '../../../src/common/database/administration/administration.entity';
+import { DatacenterRegisterEntity } from '../../../src/common/database/administration/datacenter-register.entity';
 import { JwksClientService } from '../../../src/modules/auth/jwks-client.service';
 import { InMemoryDatabaseModule } from '../../common/in-memory-database.module';
 import { JwksClientServiceStub } from '../../common/jwks-client-service.stub';
@@ -26,7 +26,7 @@ import { signAdminToken } from '../../common/sign-admin-token';
 describe('Pcbox flow (e2e, in-memory DB)', () => {
   let app: INestApplication<App>;
   let moduleFixture: TestingModule;
-  let repository: Repository<AdministrationEntity>;
+  let repository: Repository<DatacenterRegisterEntity>;
   let executeMock: jest.Mock;
   let adminToken: string;
 
@@ -65,7 +65,9 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
     );
     await app.init();
 
-    repository = moduleFixture.get(getRepositoryToken(AdministrationEntity));
+    repository = moduleFixture.get(
+      getRepositoryToken(DatacenterRegisterEntity),
+    );
   });
 
   beforeEach(() => {
@@ -145,6 +147,7 @@ describe('Pcbox flow (e2e, in-memory DB)', () => {
         informer: 'ana@example.com',
         status: 'APPROVED',
         fileContent: validBody().fileContent,
+        response: null,
         execution: {
           success: true,
           exitCode: 0,

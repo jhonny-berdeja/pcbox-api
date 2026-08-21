@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { AdministrationsRepository } from '../../common/database/administration/administrations.repository';
-import { AdministrationEntity } from '../../common/database/administration/administration.entity';
+import { DatabaseRegisterRepository } from '../../common/database/administration/database-register.repository';
+import { DatabaseRegisterEntity } from '../../common/database/administration/database-register.entity';
 import { AnsibleService } from '../ansible/ansible.service';
 import { DatabaseService } from './database.service';
 import { CreateDatabaseAdministrationDto } from './dto/create-database-administration.dto';
@@ -27,7 +27,7 @@ describe('DatabaseService', () => {
     const execute = jest.fn();
     const repository = {
       createAdministration,
-    } as unknown as AdministrationsRepository;
+    } as unknown as DatabaseRegisterRepository;
     const ansibleService = { execute } as unknown as AnsibleService;
 
     const service = new DatabaseService(repository, ansibleService);
@@ -44,7 +44,7 @@ describe('DatabaseService', () => {
     const execute = jest.fn();
     const repository = {
       createAdministration,
-    } as unknown as AdministrationsRepository;
+    } as unknown as DatabaseRegisterRepository;
     const ansibleService = { execute } as unknown as AnsibleService;
 
     const service = new DatabaseService(repository, ansibleService);
@@ -60,13 +60,14 @@ describe('DatabaseService', () => {
 
   it('templates the SQL playbook, persists it, and runs it with sqlCode delivered verbatim', async () => {
     const dto = buildDto();
-    const savedEntity = AdministrationEntity.builder()
+    const savedEntity = DatabaseRegisterEntity.builder()
       .withTicketNumber(dto.ticketNumber)
       .withDepartment(dto.department)
       .withApprover(dto.approver)
       .withInformer(dto.informer)
+      .withDatabase(dto.dbName)
       .withStatus(dto.status)
-      .withFileContent('placeholder')
+      .withSqlContent('placeholder')
       .build();
     Object.assign(savedEntity, { id: 9 });
 
@@ -80,16 +81,16 @@ describe('DatabaseService', () => {
 
     const repository = {
       createAdministration,
-    } as unknown as AdministrationsRepository;
+    } as unknown as DatabaseRegisterRepository;
     const ansibleService = { execute } as unknown as AnsibleService;
 
     const service = new DatabaseService(repository, ansibleService);
     await service.executeAdministrationPlaybook(dto);
 
-    const calls = createAdministration.mock.calls as [AdministrationEntity][];
-    const persistedFileContent = calls[0][0].fileContent;
-    expect(persistedFileContent).toContain('stdin: SELECT 1;');
-    expect(persistedFileContent).not.toContain('argv:\n        - SELECT');
-    expect(execute).toHaveBeenCalledWith(persistedFileContent);
+    const calls = createAdministration.mock.calls as [DatabaseRegisterEntity][];
+    const persistedSqlContent = calls[0][0].sqlContent;
+    expect(persistedSqlContent).toContain('stdin: SELECT 1;');
+    expect(persistedSqlContent).not.toContain('argv:\n        - SELECT');
+    expect(execute).toHaveBeenCalledWith(persistedSqlContent);
   });
 });

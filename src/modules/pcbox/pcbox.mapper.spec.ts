@@ -27,6 +27,7 @@ describe('PcboxMapper', () => {
         informer: 'Ana',
         status: 'APPROVED',
         fileContent: '- hosts: all\n  tasks: []\n',
+        response: null,
       });
     });
   });
@@ -54,6 +55,7 @@ describe('PcboxMapper', () => {
         informer: 'Ana',
         status: 'APPROVED',
         fileContent: '- hosts: all\n  tasks: []\n',
+        response: null,
         execution: {
           success: true,
           exitCode: 0,

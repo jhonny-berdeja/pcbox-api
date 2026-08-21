@@ -19,7 +19,7 @@ function buildDto(): CreateDatabaseAdministrationDto {
 
 describe('DatabaseMapper', () => {
   describe('toEntity', () => {
-    it('copies the shared administration fields, discarding the DB-specific ones', () => {
+    it('copies the shared administration fields, renames dbName to database, and discards namespace/deployment/sqlCode', () => {
       const dto = buildDto();
       const entity = DatabaseMapper.toEntity(dto, 'templated-playbook');
 
@@ -28,10 +28,13 @@ describe('DatabaseMapper', () => {
         department: 'Datacenter',
         approver: 'Beto',
         informer: 'ana@example.com',
+        database: 'pcbox',
         status: 'APPROVED',
-        fileContent: 'templated-playbook',
+        sqlContent: 'templated-playbook',
+        response: null,
       });
       expect(entity).not.toHaveProperty('namespace');
+      expect(entity).not.toHaveProperty('deployment');
       expect(entity).not.toHaveProperty('sqlCode');
     });
   });
@@ -58,8 +61,10 @@ describe('DatabaseMapper', () => {
         department: 'Datacenter',
         approver: 'Beto',
         informer: 'ana@example.com',
+        database: 'pcbox',
         status: 'APPROVED',
-        fileContent: 'templated-playbook',
+        sqlContent: 'templated-playbook',
+        response: null,
         execution: {
           success: true,
           exitCode: 0,

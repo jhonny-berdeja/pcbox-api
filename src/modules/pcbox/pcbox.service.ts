@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { AdministrationsRepository } from '../../common/database/administration/administrations.repository';
+import { DatacenterRegisterRepository } from '../../common/database/administration/datacenter-register.repository';
 import { ResponseBody } from '../../common/dto/response-body.dto';
 import { CreatePcboxDto } from './dto/create-pcbox.dto';
 import { PcboxMapper } from './pcbox.mapper';
@@ -13,7 +13,7 @@ const NOT_APPROVED_MESSAGE = `Only administrations with status '${APPROVED_STATU
 @Injectable()
 export class PcboxService {
   constructor(
-    private readonly administrationsRepository: AdministrationsRepository,
+    private readonly datacenterRegisterRepository: DatacenterRegisterRepository,
     private readonly ansibleService: AnsibleService,
   ) {}
 
@@ -25,7 +25,7 @@ export class PcboxService {
 
     const entity = PcboxMapper.toEntity(dto, dto.fileContent);
     const savedAdministration =
-      await this.administrationsRepository.createAdministration(entity);
+      await this.datacenterRegisterRepository.createAdministration(entity);
 
     const execution = await this.ansibleService.execute(dto.fileContent);
 
