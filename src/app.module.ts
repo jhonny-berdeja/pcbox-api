@@ -8,6 +8,7 @@ import { UnknownExceptionFilter } from './common/filters/unknown-exception.filte
 import { LoggerModule } from './instrument/logger/logger.module';
 import { PcboxModule } from './modules/pcbox/pcbox.module';
 import { DatabaseAdministrationModule } from './modules/database/database.module';
+import { KubernetesModule } from './modules/kubernetes/kubernetes.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DatabaseAdministrationModule } from './modules/database/database.module
     DatabaseModule,
     PcboxModule,
     DatabaseAdministrationModule,
+    KubernetesModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: UnknownExceptionFilter },

@@ -2,8 +2,10 @@ import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DatacenterRegisterEntity } from '../../src/common/database/administration/datacenter-register.entity';
 import { DatabaseRegisterEntity } from '../../src/common/database/administration/database-register.entity';
+import { KubernetesRegisterEntity } from '../../src/common/database/administration/kubernetes-register.entity';
 import { DatacenterRegisterRepository } from '../../src/common/database/administration/datacenter-register.repository';
 import { DatabaseRegisterRepository } from '../../src/common/database/administration/database-register.repository';
+import { KubernetesRegisterRepository } from '../../src/common/database/administration/kubernetes-register.repository';
 
 /**
  * Real, unmocked `TypeOrmModule` backed by a throwaway in-memory SQLite DB —
@@ -18,15 +20,28 @@ import { DatabaseRegisterRepository } from '../../src/common/database/administra
     TypeOrmModule.forRoot({
       type: 'better-sqlite3',
       database: ':memory:',
-      entities: [DatacenterRegisterEntity, DatabaseRegisterEntity],
+      entities: [
+        DatacenterRegisterEntity,
+        DatabaseRegisterEntity,
+        KubernetesRegisterEntity,
+      ],
       synchronize: true,
     }),
-    TypeOrmModule.forFeature([DatacenterRegisterEntity, DatabaseRegisterEntity]),
+    TypeOrmModule.forFeature([
+      DatacenterRegisterEntity,
+      DatabaseRegisterEntity,
+      KubernetesRegisterEntity,
+    ]),
   ],
-  providers: [DatacenterRegisterRepository, DatabaseRegisterRepository],
+  providers: [
+    DatacenterRegisterRepository,
+    DatabaseRegisterRepository,
+    KubernetesRegisterRepository,
+  ],
   exports: [
     DatacenterRegisterRepository,
     DatabaseRegisterRepository,
+    KubernetesRegisterRepository,
     TypeOrmModule,
   ],
 })
