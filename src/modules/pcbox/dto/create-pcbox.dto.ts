@@ -26,6 +26,5 @@ export class CreatePcboxDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(500)
   fileContent!: string;
 }

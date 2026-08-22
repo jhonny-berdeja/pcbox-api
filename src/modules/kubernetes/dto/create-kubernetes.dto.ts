@@ -26,6 +26,5 @@ export class CreateKubernetesDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(500)
   fileContent!: string;
 }
