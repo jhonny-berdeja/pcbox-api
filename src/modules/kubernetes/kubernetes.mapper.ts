@@ -2,9 +2,12 @@ import { KubernetesRegisterEntity } from '../../common/database/administration/k
 import { CreateKubernetesDto } from './dto/create-kubernetes.dto';
 import { KubernetesResponse } from './dto/kubernetes-response.dto';
 import type { K8sApplyResult } from './kubernetes.connector';
+import type { AnsibleExecutionResult } from '../ansible/ansible.dto';
+import { ExecutionType } from './value-objects/execution-type.enum';
 
 export class KubernetesMapper {
-  static toEntity(
+  /** Write path for `KubernetesService.executeManifests` — always stamps `ExecutionType.MANIFEST`. */
+  static toManifestEntity(
     dto: CreateKubernetesDto,
     fileContent: string,
   ): KubernetesRegisterEntity {
@@ -15,6 +18,23 @@ export class KubernetesMapper {
       .withInformer(dto.informer)
       .withStatus(dto.status)
       .withFileContent(fileContent)
+      .withExecutionType(ExecutionType.MANIFEST)
+      .build();
+  }
+
+  /** Write path for `KubernetesService.executeAnsiblePlaybook` — always stamps `ExecutionType.ANSIBLE`. */
+  static toAnsibleEntity(
+    dto: CreateKubernetesDto,
+    fileContent: string,
+  ): KubernetesRegisterEntity {
+    return KubernetesRegisterEntity.builder()
+      .withTicketNumber(dto.ticketNumber)
+      .withDepartment(dto.department)
+      .withApprover(dto.approver)
+      .withInformer(dto.informer)
+      .withStatus(dto.status)
+      .withFileContent(fileContent)
+      .withExecutionType(ExecutionType.ANSIBLE)
       .build();
   }
 
@@ -25,7 +45,7 @@ export class KubernetesMapper {
    * failure); `stderr` carries `result.errorMessage` only when
    * `result.success` is `false`.
    */
-  static toResponse(
+  static toManifestResponse(
     execution: KubernetesRegisterEntity,
     result: K8sApplyResult,
   ): KubernetesResponse {
@@ -48,6 +68,34 @@ export class KubernetesMapper {
           )
           .join('\n'),
         stderr: result.success ? '' : (result.errorMessage ?? ''),
+      },
+    };
+  }
+
+  /**
+   * Unlike `toManifestResponse`, `result` here already carries the real
+   * process exit code and raw stdout/stderr of the `ansible-playbook` SSH
+   * run (`AnsibleExecutionResult`) — nothing to synthesize, just passed
+   * through.
+   */
+  static toAnsibleResponse(
+    execution: KubernetesRegisterEntity,
+    result: AnsibleExecutionResult,
+  ): KubernetesResponse {
+    return {
+      id: execution.id,
+      ticketNumber: execution.ticketNumber,
+      department: execution.department,
+      approver: execution.approver,
+      informer: execution.informer,
+      status: execution.status,
+      fileContent: execution.fileContent,
+      response: execution.response,
+      execution: {
+        success: result.success,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
       },
     };
   }

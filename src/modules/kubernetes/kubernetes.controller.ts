@@ -28,4 +28,18 @@ export class KubernetesController {
   ): Promise<ResponseBody<KubernetesResponse>> {
     return this.kubernetesService.executeManifests(dto);
   }
+
+  /**
+   * `fileContent` is an Ansible playbook here, not a k8s manifest — same
+   * body shape as `POST /kubernetes`, executed through
+   * `KubernetesService.executeAnsiblePlaybook` (Ansible/SSH) instead of
+   * `executeManifests` (k8s API).
+   */
+  @Post('ansible')
+  @HttpCode(HttpStatus.CREATED)
+  executeAnsible(
+    @Body() dto: CreateKubernetesDto,
+  ): Promise<ResponseBody<KubernetesResponse>> {
+    return this.kubernetesService.executeAnsiblePlaybook(dto);
+  }
 }
